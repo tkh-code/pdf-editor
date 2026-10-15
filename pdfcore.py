@@ -1,49 +1,41 @@
 # -*- coding: utf-8 -*-
-"""PDF編集ソフト ローカルサーバー
+"""PDF編集ソフト 処理本体（ブラウザ内の Python = Pyodide で動く）
 
-ブラウザ画面(index.html)からの指示で PyMuPDF を使って
-ページ描画・テキスト抽出・PDF書き出しを行う。
-起動: python server.py [開きたいPDF ...]
+worker.js から呼ばれ、PyMuPDF でページ描画・文字抽出・PDF書き出しを行う。
+ファイルはすべてブラウザの中で処理し、外部には送らない。
 """
-import base64
-import io
 import json
-import os
-import socket
-import sys
-import threading
 import uuid
-import webbrowser
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
 
 import pymupdf
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-FONT_DIR = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+FONT_DIR = "/fonts"
 
-# 画面のフォント選択肢 → Windows のフォントファイル
+# 画面のフォント選択肢 → フォントファイル（fonts/ に同梱、SIL OFL）
 FONTS = {
-    "gothic": "YuGothM.ttc",
-    "gothic-b": "YuGothB.ttc",
-    "mincho": "yumin.ttf",
-    "meiryo": "meiryo.ttc",
-    "msgothic": "msgothic.ttc",
-    "arial": "arial.ttf",      # 欧文のみ
-    "times": "times.ttf",      # 欧文のみ
+    "gothic": "BIZUDPGothic-Regular.ttf",
+    "gothic-b": "BIZUDPGothic-Bold.ttf",
+    "mincho": "BIZUDPMincho-Regular.ttf",
+    "mono": "BIZUDGothic-Regular.ttf",
 }
+# 英数字専用：PDF標準フォント（埋め込み不要）
+BASE14 = {"arial": "helv", "times": "tiro"}
 
-# 読み込んだPDF・画像（id → bytes / Document）
+# 書き出しごとのフォント名の接尾辞（このツールで作ったPDFを再編集したとき、
+# 既存の部分フォントと名前がぶつかって文字が欠けるのを防ぐ）
+RUN = {"tag": "0"}
+
+# 読み込んだPDF・画像（id → Document / bytes）
 SOURCES = {}
 IMAGES = {}
-LOCK = threading.Lock()
 
 
-def font_file(key):
-    path = os.path.join(FONT_DIR, FONTS.get(key, FONTS["gothic"]))
-    if not os.path.exists(path):
-        path = os.path.join(FONT_DIR, "msgothic.ttc")
-    return path
+def font_args(key):
+    """insert_text に渡す fontname / fontfile。"""
+    if key in BASE14:
+        return {"fontname": BASE14[key]}
+    key = key if key in FONTS else "gothic"
+    return {"fontname": "F" + key.replace("-", "") + RUN["tag"], "fontfile": FONT_DIR + "/" + FONTS[key]}
 
 
 def hex2rgb(h, default=(0, 0, 0)):
@@ -66,8 +58,7 @@ def add_source(data, name):
         img = pymupdf.open(stream=data)
         doc = pymupdf.open("pdf", img.convert_to_pdf())
     sid = uuid.uuid4().hex[:12]
-    with LOCK:
-        SOURCES[sid] = doc
+    SOURCES[sid] = doc
     pages = []
     for p in doc:
         pages.append({"src": sid, "index": p.number,
@@ -87,27 +78,27 @@ def page_for_render(src, index, extra_rot):
 
 
 def render_png(q):
-    src = q["src"][0]
-    scale = float(q.get("scale", ["1"])[0])
-    rot = int(q.get("rot", ["0"])[0])
+    src = q["src"]
+    scale = float(q.get("scale", 1))
+    rot = int(q.get("rot", 0))
     if src == "blank":
-        w = float(q.get("w", ["595"])[0])
-        h = float(q.get("h", ["842"])[0])
+        w = float(q.get("w", 595))
+        h = float(q.get("h", 842))
         tmp = pymupdf.open()
         p = tmp.new_page(width=w, height=h)
         p.set_rotation(rot % 360)
     else:
-        tmp, p = page_for_render(src, int(q["index"][0]), rot)
+        tmp, p = page_for_render(src, int(q["index"]), rot)
     pix = p.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
     return pix.tobytes("png")
 
 
 def page_spans(q):
     """既存テキスト編集用：見た目座標でのテキスト行（span）一覧。"""
-    src = q["src"][0]
+    src = q["src"]
     if src == "blank":
         return []
-    tmp, p = page_for_render(src, int(q["index"][0]), int(q.get("rot", ["0"])[0]))
+    tmp, p = page_for_render(src, int(q["index"]), int(q.get("rot", 0)))
     rot_m = p.rotation_matrix
     out = []
     d = p.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)
@@ -139,8 +130,7 @@ def page_spans(q):
 def draw_text(page, ann, derot):
     size = float(ann.get("size", 12))
     color = hex2rgb(ann.get("color"))
-    ff = font_file(ann.get("font", "gothic"))
-    fname = "F" + ann.get("font", "gothic").replace("-", "")
+    fa = font_args(ann.get("font", "gothic"))
     lh = float(ann.get("lineHeight", 1.25))
     base = float(ann.get("baseline", 0.95))  # 画面で実測した「行の上端→基準線」の比
     pad = float(ann.get("pad", 0))
@@ -149,8 +139,7 @@ def draw_text(page, ann, derot):
         if not line:
             continue
         pt = pymupdf.Point(x, y + size * base + i * size * lh) * derot
-        page.insert_text(pt, line, fontsize=size, fontfile=ff, fontname=fname,
-                         color=color, rotate=page.rotation)
+        page.insert_text(pt, line, fontsize=size, color=color, rotate=page.rotation, **fa)
 
 
 def vrect(a, derot):
@@ -237,7 +226,6 @@ def stamp_all(out, opts):
                 num = start + i - (int(pn.get("from", 1)) - 1)
                 txt = fmt.replace("{n}", str(num)).replace("{total}", str(n))
                 size = float(pn.get("size", 10))
-                ff = font_file("gothic")
                 tl = pymupdf.get_text_length(txt, fontsize=size)  # 概算（欧文基準）
                 tl = max(tl, len(txt) * size * 0.6)
                 pos = pn.get("pos", "bottom-center")
@@ -250,13 +238,12 @@ def stamp_all(out, opts):
                     x = m
                 y = m + size if pos.startswith("top") else H - m
                 page.insert_text(pymupdf.Point(x, y) * derot, txt, fontsize=size,
-                                 fontfile=ff, fontname="Fgothic", rotate=page.rotation,
-                                 color=(0, 0, 0))
+                                 rotate=page.rotation, color=(0, 0, 0), **font_args("gothic"))
         if wm and wm.get("enabled") and wm.get("text"):
             size = float(wm.get("size", 60))
             txt = wm["text"]
             col = hex2rgb(wm.get("color"), (0.6, 0.6, 0.6))
-            ff = font_file(wm.get("font", "gothic"))
+            fa = font_args(wm.get("font", "gothic"))
             # 中央に斜め45°で配置（Shape + morph で回転）
             tl = len(txt) * size
             cx, cy = W / 2, H / 2
@@ -264,15 +251,15 @@ def stamp_all(out, opts):
             ang = float(wm.get("angle", 45))
             mat = pymupdf.Matrix(ang)  # 左下→右上の向き
             sh = page.new_shape()
-            sh.insert_text(start * derot, txt, fontsize=size, fontfile=ff,
-                           fontname="Fwm", color=col, rotate=page.rotation,
+            sh.insert_text(start * derot, txt, fontsize=size, color=col, rotate=page.rotation,
                            morph=(pymupdf.Point(cx, cy) * derot, mat),
                            fill_opacity=float(wm.get("opacity", 0.25)),
-                           stroke_opacity=float(wm.get("opacity", 0.25)))
+                           stroke_opacity=float(wm.get("opacity", 0.25)), **fa)
             sh.commit(overlay=True)
 
 
 def build_pdf(spec):
+    RUN["tag"] = uuid.uuid4().hex[:6]
     out = pymupdf.open()
     for pg in spec["pages"]:
         src = pg["src"]
@@ -310,119 +297,52 @@ def build_pdf(spec):
     return out.tobytes(**kw)
 
 
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        pass
-
-    def _send(self, code, body, ctype="application/json; charset=utf-8", headers=None):
-        if isinstance(body, (dict, list)):
-            body = json.dumps(body, ensure_ascii=False).encode("utf-8")
-        elif isinstance(body, str):
-            body = body.encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        headers = dict(headers or {})
-        headers.setdefault("Cache-Control", "no-store")
-        for k, v in headers.items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        u = urlparse(self.path)
-        q = parse_qs(u.query)
-        try:
-            if u.path in ("/", "/index.html"):
-                with open(os.path.join(HERE, "index.html"), "rb") as f:
-                    return self._send(200, f.read(), "text/html; charset=utf-8")
-            if u.path == "/render":
-                return self._send(200, render_png(q), "image/png",
-                                  headers={"Cache-Control": "max-age=3600"})
-            if u.path == "/spans":
-                return self._send(200, page_spans(q))
-            if u.path == "/initial":
-                return self._send(200, INITIAL)
-            if u.path == "/image":
-                data = IMAGES.get(q["id"][0])
-                if not data:
-                    return self._send(404, {"error": "not found"})
-                return self._send(200, data, "application/octet-stream",
-                                  headers={"Cache-Control": "max-age=3600"})
-            return self._send(404, {"error": "not found"})
-        except Exception as e:
-            return self._send(500, {"error": str(e)})
-
-    def do_POST(self):
-        u = urlparse(self.path)
-        q = parse_qs(u.query)
-        n = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(n)
-        try:
-            if u.path == "/upload":
-                name = q.get("name", ["file"])[0]
-                return self._send(200, add_source(body, name))
-            if u.path == "/upload-image":
-                iid = uuid.uuid4().hex[:12]
-                pix = pymupdf.Pixmap(body)  # 形式チェック兼サイズ取得
-                IMAGES[iid] = body
-                return self._send(200, {"id": iid, "w": pix.width, "h": pix.height})
-            if u.path == "/export":
-                spec = json.loads(body.decode("utf-8"))
-                data = build_pdf(spec)
-                return self._send(200, data, "application/pdf")
-            if u.path == "/export-split":
-                # 指定ページ群ごとに別PDF → base64 のリストで返す
-                spec = json.loads(body.decode("utf-8"))
-                res = []
-                for part in spec["parts"]:
-                    data = build_pdf({"pages": part["pages"], "options": spec.get("options", {})})
-                    res.append({"name": part["name"], "data": base64.b64encode(data).decode()})
-                return self._send(200, res)
-            if u.path == "/save-to":
-                # 指定パスへ直接保存（ブラウザのダウンロードを使わない場合）
-                path = q["path"][0]
-                with open(path, "wb") as f:
-                    f.write(body)
-                return self._send(200, {"ok": True, "path": path})
-            return self._send(404, {"error": "not found"})
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return self._send(500, {"error": str(e)})
+def add_image(data):
+    pix = pymupdf.Pixmap(data)  # 形式チェック兼サイズ取得
+    iid = uuid.uuid4().hex[:12]
+    IMAGES[iid] = data
+    return {"id": iid, "w": pix.width, "h": pix.height}
 
 
-INITIAL = []
+def fonts_needed(spec):
+    """書き出しに必要なフォントファイル名（worker が事前に読み込む）。"""
+    keys = set()
+    for pg in spec["pages"]:
+        for a in pg.get("annotations") or []:
+            if a.get("type") in ("text", "edittext", "stamp"):
+                keys.add(a.get("font", "gothic"))
+    o = spec.get("options") or {}
+    if (o.get("pageNumbers") or {}).get("enabled"):
+        keys.add("gothic")
+    if (o.get("watermark") or {}).get("enabled"):
+        keys.add((o["watermark"]).get("font", "gothic"))
+    return sorted({FONTS.get(k, FONTS["gothic"]) for k in keys if k not in BASE14})
 
 
-def free_port(preferred=8765):
-    for port in range(preferred, preferred + 50):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("127.0.0.1", port))
-                return port
-            except OSError:
-                continue
-    raise RuntimeError("空きポートがありません")
+# ---- worker.js から呼ぶ入口（引数・戻り値は JSON 文字列 / bytes） ----
+def _bytes(data):
+    return data.to_bytes() if hasattr(data, "to_bytes") else bytes(data)
 
 
-def main():
-    args = [a for a in sys.argv[1:] if a != "--no-browser"]
-    for path in args:
-        if os.path.isfile(path):
-            with open(path, "rb") as f:
-                INITIAL.append(add_source(f.read(), os.path.basename(path)))
-    port = free_port()
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    url = f"http://127.0.0.1:{port}/"
-    print(f"PDF編集ソフト起動中: {url}  （このウィンドウを閉じると終了します）")
-    if "--no-browser" not in sys.argv:
-        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
-    try:
-        srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
+def api_open(data, name):
+    return json.dumps(add_source(_bytes(data), name), ensure_ascii=False)
 
 
-if __name__ == "__main__":
-    main()
+def api_image(data):
+    return json.dumps(add_image(_bytes(data)))
+
+
+def api_render(q):
+    return render_png(json.loads(q))
+
+
+def api_spans(q):
+    return json.dumps(page_spans(json.loads(q)), ensure_ascii=False)
+
+
+def api_fonts(spec):
+    return json.dumps(fonts_needed(json.loads(spec)))
+
+
+def api_export(spec):
+    return build_pdf(json.loads(spec))

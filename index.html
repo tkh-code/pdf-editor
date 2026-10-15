@@ -5,6 +5,10 @@
 <title>PDF編集ソフト</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+@font-face{font-family:"PE Gothic";src:url(fonts/BIZUDPGothic-Regular.ttf) format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:"PE Gothic";src:url(fonts/BIZUDPGothic-Bold.ttf) format("truetype");font-weight:700;font-display:swap}
+@font-face{font-family:"PE Mincho";src:url(fonts/BIZUDPMincho-Regular.ttf) format("truetype");font-display:swap}
+@font-face{font-family:"PE Mono";src:url(fonts/BIZUDGothic-Regular.ttf) format("truetype");font-display:swap}
 :root{
   --bg:#e9ecef; --panel:#ffffff; --line:#d5d9de; --text:#1f2328; --muted:#6a737d;
   --accent:#d6402b; --accent-weak:#fde9e6; --sel:#1a73e8;
@@ -208,13 +212,12 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
 'use strict';
 // ===== 状態 =====
 const FONTS = {
-  'gothic':   {label:'游ゴシック',   css:'"Yu Gothic Medium","Yu Gothic","YuGothic",sans-serif', weight:500},
-  'gothic-b': {label:'游ゴシック 太字', css:'"Yu Gothic","YuGothic",sans-serif', weight:700},
-  'mincho':   {label:'游明朝',       css:'"Yu Mincho","YuMincho",serif', weight:400},
-  'meiryo':   {label:'メイリオ',      css:'Meiryo,sans-serif', weight:400},
-  'msgothic': {label:'MS ゴシック',   css:'"MS Gothic",monospace', weight:400},
-  'arial':    {label:'Arial（英数字のみ）', css:'Arial,sans-serif', weight:400},
-  'times':    {label:'Times（英数字のみ）', css:'"Times New Roman",serif', weight:400},
+  'gothic':   {label:'ゴシック',       css:'"PE Gothic"', weight:400, web:true},
+  'gothic-b': {label:'ゴシック 太字',  css:'"PE Gothic"', weight:700, web:true},
+  'mincho':   {label:'明朝',           css:'"PE Mincho"', weight:400, web:true},
+  'mono':     {label:'ゴシック 等幅',  css:'"PE Mono"', weight:400, web:true},
+  'arial':    {label:'Helvetica（英数字のみ）', css:'Arial,Helvetica,sans-serif', weight:400},
+  'times':    {label:'Times（英数字のみ）', css:'"Times New Roman",Times,serif', weight:400},
 };
 const LH = 1.25;            // 行間（文字サイズ比）
 const S = {
@@ -242,11 +245,39 @@ function toast(msg, ms=2200){ const t=$('#toast'); t.textContent=msg; t.classLis
 function busy(on){ $('#busy').classList.toggle('show', !!on); }
 const vis = p => (p.rot % 180) ? [p.bh, p.bw] : [p.bw, p.bh];
 const pageById = id => S.pages.find(p => p.id === id);
-function renderURL(p, scale){
-  const q = new URLSearchParams({src:p.src, index:p.index ?? 0, rot:p.rot, scale:scale.toFixed(3)});
-  if (p.src === 'blank'){ q.set('w', p.bw); q.set('h', p.bh); }
-  return '/render?' + q;
+// ===== PDF処理エンジン（ブラウザ内 Python のワーカー） =====
+const worker = new Worker('worker.js');
+const pending = new Map(); let reqId = 0;
+worker.onmessage = e => {
+  const d = e.data;
+  if (d.ready){ $('#stMsg').textContent = ''; return; }
+  if (d.fatal){ $('#stMsg').textContent = 'PDFエンジンを読み込めませんでした（ネット接続を確認して再読み込みしてください）'; alert('PDFエンジンを読み込めませんでした: ' + d.fatal); return; }
+  const p = pending.get(d.id); if (!p) return; pending.delete(d.id);
+  d.error ? p.reject(new Error(d.error)) : p.resolve(d.result);
+};
+function call(cmd, args, transfer){
+  return new Promise((resolve, reject) => { const id = ++reqId; pending.set(id, {resolve, reject}); worker.postMessage({id, cmd, args}, transfer || []); });
 }
+// ページ画像（同じ条件の描画は使い回す）
+const imgCache = new Map(), imgWait = new Map();
+function renderKey(p, scale){ return [p.src, p.index ?? 0, p.rot, scale.toFixed(3), p.bw, p.bh].join('|'); }
+function pageImage(p, scale){
+  const key = renderKey(p, scale);
+  if (imgCache.has(key)) return Promise.resolve(imgCache.get(key));
+  if (!imgWait.has(key)) imgWait.set(key, call('render', {src:p.src, index:p.index ?? 0, rot:p.rot, scale, w:p.bw, h:p.bh}).then(bytes => {
+    const url = URL.createObjectURL(new Blob([bytes], {type:'image/png'}));
+    imgCache.set(key, url); imgWait.delete(key);
+    if (imgCache.size > 400){ const k = imgCache.keys().next().value; URL.revokeObjectURL(imgCache.get(k)); imgCache.delete(k); }
+    return url;
+  }));
+  return imgWait.get(key);
+}
+function loadImg(img, p, scale){
+  const key = renderKey(p, scale); if (img.dataset.key === key) return;
+  img.dataset.key = key;
+  pageImage(p, scale).then(url => { if (img.dataset.key === key) img.src = url; }).catch(() => {});
+}
+const imageURLs = {};   // 配置した画像 id → 表示用URL
 function snapshot(){ return JSON.stringify({pages:S.pages}); }
 function pushUndo(){ S.undo.push(snapshot()); if (S.undo.length > 100) S.undo.shift(); S.redo = []; S.dirty = true; updateButtons(); }
 function restore(json){ const o = JSON.parse(json); S.pages = o.pages; S.sel = null; S.selPages = new Set([...S.selPages].filter(id => pageById(id))); renderAll(); }
@@ -260,23 +291,26 @@ function updateButtons(){
   $('#stFile').textContent = S.fileName ? (S.fileName + (S.dirty ? ' *' : '')) : 'ファイルなし';
   document.title = (S.fileName ? S.fileName + (S.dirty ? ' *' : '') + ' - ' : '') + 'PDF編集ソフト';
 }
-async function api(path, body, ctype='application/octet-stream'){
-  const r = await fetch(path, {method:'POST', body, headers:{'Content-Type':ctype}});
-  if (!r.ok){ let m = r.statusText; try { m = (await r.json()).error; } catch(e){} throw new Error(m); }
-  return r;
+async function exportPDF(pages, opts){
+  const spec = await exportSpec(pages, opts);
+  return new Blob([await call('export', spec)], {type:'application/pdf'});
 }
 
 // 文字の基準線位置（フォントごとにブラウザで実測し、PDF側と一致させる）
 const baseCache = {};
+function fontSpec(font){ const f = FONTS[font] || FONTS.gothic; return `${f.weight} 16px ${f.css}`; }
+function fontReady(font){ return document.fonts.load(fontSpec(font)).then(() => { delete baseCache[font]; }); }
 function baselineRatio(font){
   if (baseCache[font]) return baseCache[font];
   const f = FONTS[font] || FONTS.gothic;
+  if (f.web && !document.fonts.check(fontSpec(font))) fontReady(font);
   const d = document.createElement('div');
   d.style.cssText = `position:absolute;left:-9999px;top:0;font-family:${f.css};font-weight:${f.weight};font-size:100px;line-height:${LH};white-space:pre`;
   d.innerHTML = 'あA<span style="display:inline-block;width:1px;height:0;vertical-align:baseline"></span>';
   document.body.appendChild(d);
   const r = d.lastChild.getBoundingClientRect().top - d.getBoundingClientRect().top;
   d.remove();
+  if (f.web && !document.fonts.check(fontSpec(font))) return r / 100;   // 読み込み中は仮の値
   return baseCache[font] = r / 100;
 }
 function measureText(text, font, size){
@@ -293,8 +327,8 @@ async function uploadFiles(files){
   busy(true);
   try {
     for (const f of files){
-      const r = await api('/upload?name=' + encodeURIComponent(f.name), f);
-      res.push(await r.json());
+      const data = new Uint8Array(await f.arrayBuffer());
+      res.push(await call('open', {data, name:f.name}, [data.buffer]));
     }
   } catch(e){ alert('読み込めませんでした: ' + e.message); }
   finally { busy(false); }
@@ -342,14 +376,14 @@ function renderThumbs(){
   thumbsEl.innerHTML = '';
   thumbObs?.disconnect();
   thumbObs = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting){ const img = e.target; if (!img.src) img.src = img.dataset.src; thumbObs.unobserve(img); }
+    if (e.isIntersecting){ const img = e.target, p = pageById(img.closest('.thumb').dataset.pid); if (p) loadImg(img, p, +img.dataset.sc); thumbObs.unobserve(img); }
   }), {root: thumbsEl, rootMargin: '400px'});
   S.pages.forEach((p, i) => {
     const d = document.createElement('div');
     d.className = 'thumb' + (S.selPages.has(p.id) ? ' sel' : '') + (S.cur === p.id ? ' cur' : '');
     d.draggable = true; d.dataset.pid = p.id;
     const [w,h] = vis(p); const sc = Math.min(130/w, 170/h);
-    d.innerHTML = `<div class="tw" style="width:${Math.round(w*sc)+4}px;height:${Math.round(h*sc)+4}px"><img data-src="${renderURL(p, sc*1.5)}" style="width:${Math.round(w*sc)}px;height:${Math.round(h*sc)}px">${p.anns.length ? '<span class="badge">編集</span>' : ''}</div><div class="num">${i+1}</div>`;
+    d.innerHTML = `<div class="tw" style="width:${Math.round(w*sc)+4}px;height:${Math.round(h*sc)+4}px"><img data-sc="${sc*1.5}" style="width:${Math.round(w*sc)}px;height:${Math.round(h*sc)}px">${p.anns.length ? '<span class="badge">編集</span>' : ''}</div><div class="num">${i+1}</div>`;
     thumbsEl.appendChild(d);
     thumbObs.observe(d.querySelector('img'));
   });
@@ -363,8 +397,7 @@ function renderPages(){
   pageObs = new IntersectionObserver(es => es.forEach(e => {
     const el = e.target, p = pageById(el.dataset.pid); if (!p) return;
     if (e.isIntersecting){
-      const img = el.querySelector('img'); const url = renderURL(p, Math.min(4, S.zoom * (window.devicePixelRatio||1)));
-      if (img.getAttribute('src') !== url) img.src = url;
+      loadImg(el.querySelector('img'), p, Math.min(4, S.zoom * (window.devicePixelRatio||1)));
       if (S.tool === 'edittext') loadSpans(p, el);
     }
   }), {root: viewer, rootMargin: '800px'});
@@ -449,7 +482,7 @@ function renderLayer(p, el){
       case 'rect': case 'ellipse':
         Object.assign(d.style, {border:`${a.width*z}px solid ${a.color}`, background:a.fill || 'transparent', borderRadius: a.type==='ellipse' ? '50%' : '0'});
         break;
-      case 'image': { const im = new Image(); im.src = '/image?id=' + a.img; d.appendChild(im); break; }
+      case 'image': { const im = new Image(); im.src = imageURLs[a.img] || ''; d.appendChild(im); break; }
       case 'line': case 'arrow': case 'ink': {
         let inner;
         if (a.type === 'ink') inner = `<polyline points="${a.points.map(q=>q.join(',')).join(' ')}" fill="none" stroke="${a.color}" stroke-width="${a.width}" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -479,8 +512,8 @@ async function loadSpans(p, el){
   if (p.src === 'blank') return;
   if (!spanCache.has(key)){
     spanCache.set(key, null);
-    const r = await fetch(`/spans?src=${p.src}&index=${p.index}&rot=${p.rot}`);
-    spanCache.set(key, await r.json());
+    try { spanCache.set(key, await call('spans', {src:p.src, index:p.index, rot:p.rot})); }
+    catch(e){ spanCache.delete(key); return; }
     if (S.tool === 'edittext') renderLayer(p);
   }
 }
@@ -501,13 +534,13 @@ function guessFont(name, bold, text){
   if (ascii && /helvetica|arial/.test(name)) return 'arial';
   if (ascii && /times/.test(name)) return 'times';
   if (/mincho|明朝|serif|ryumin|times/.test(name)) return 'mincho';
-  if (/meiryo/.test(name)) return 'meiryo';
-  if (/msgothic|ms-gothic|ｍｓ/.test(name)) return 'msgothic';
+  if (/msgothic|ms-gothic|ｍｓ|udgothic/.test(name)) return 'mono';
   return bold || /bold|-b$|w[6-9]/.test(name) ? 'gothic-b' : 'gothic';
 }
-function startSpanEdit(p, s){
-  pushUndo();
+async function startSpanEdit(p, s){
   const font = guessFont(s.font, s.bold, s.text);
+  if (FONTS[font].web) await fontReady(font);   // 基準線を正しく測るため
+  pushUndo();
   const a = {id:nid(), type:'edittext', text:s.text, font, size:s.size, color:s.color,
              ox0:s.x0-0.5, oy0:s.y0-0.5, ox1:s.x1+0.5, oy1:s.y1+0.5,
              x:s.x0, y:(s.base != null ? s.base - baselineRatio(font)*s.size : s.y0)};
@@ -747,7 +780,9 @@ $('#fImage').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
     busy(true);
-    const info = await (await api('/upload-image', f)).json();
+    const data = new Uint8Array(await f.arrayBuffer());
+    const info = await call('image', {data});
+    imageURLs[info.id] = URL.createObjectURL(f);
     const p = pageById(S.cur) || S.pages[0]; const [W,H] = vis(p);
     let w = Math.min(W*0.4, info.w*0.75), h = w * info.h / info.w;
     if (h > H*0.5){ h = H*0.5; w = h * info.w / info.h; }
@@ -968,7 +1003,9 @@ $('#bFitPage').onclick = () => { const p = pageById(S.cur) || S.pages[0]; if (!p
 viewer.addEventListener('wheel', e => { if (e.ctrlKey){ e.preventDefault(); setZoom(S.zoom * (e.deltaY < 0 ? 1.1 : 1/1.1)); } }, {passive:false});
 
 // ===== 保存 =====
-function exportSpec(pages, opts){
+async function exportSpec(pages, opts){
+  const used = new Set(pages.flatMap(p => p.anns.filter(a => a.font).map(a => a.font)));
+  await Promise.all([...used].filter(k => FONTS[k]?.web).map(fontReady));
   return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh,
     annotations: p.anns.filter(a => !(a.type === 'text' && !a.text.trim())).map(a => {
       const o = {...a};
@@ -1013,12 +1050,12 @@ $('#sOk').onclick = async e => {
   if ($('#pwOn').checked && !$('#pwVal').value) return alert('パスワードを入力してください');
   let name = $('#sName').value.trim() || 'document.pdf'; if (!/\.pdf$/i.test(name)) name += '.pdf';
   const pages = document.querySelector('input[name=sRange]:checked').value === 'sel' ? S.pages.filter(p => S.selPages.has(p.id)) : S.pages;
-  const spec = exportSpec(pages, saveOptions());
+  const opts = saveOptions();
   $('#dSave').close();
   try {
     const saved = await saveBlob(name, async () => {
       busy(true);
-      try { return await (await api('/export', JSON.stringify(spec), 'application/json')).blob(); }
+      try { return await exportPDF(pages, opts); }
       finally { busy(false); }
     });
     if (saved){ if (pages === S.pages){ S.fileName = saved; S.dirty = false; updateButtons(); } toast('保存しました: ' + saved); }
@@ -1052,8 +1089,7 @@ $('#spOk').onclick = async e => {
   } catch(err){ return alert(err.message); }
   $('#dSplit').close();
   if (groups.length === 1){
-    const spec = exportSpec(groups[0].pages, {});
-    const saved = await saveBlob(groups[0].name, async () => { busy(true); try { return await (await api('/export', JSON.stringify(spec), 'application/json')).blob(); } finally { busy(false); } });
+    const saved = await saveBlob(groups[0].name, async () => { busy(true); try { return await exportPDF(groups[0].pages, {}); } finally { busy(false); } });
     if (saved) toast('保存しました: ' + saved);
     return;
   }
@@ -1062,7 +1098,7 @@ $('#spOk').onclick = async e => {
   busy(true);
   try {
     for (const g of groups){
-      const blob = await (await api('/export', JSON.stringify(exportSpec(g.pages, {})), 'application/json')).blob();
+      const blob = await exportPDF(g.pages, {});
       if (dir){ const fh = await dir.getFileHandle(g.name, {create:true}); const w = await fh.createWritable(); await w.write(blob); await w.close(); }
       else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = g.name; a.click(); await new Promise(r => setTimeout(r, 300)); }
     }
@@ -1103,20 +1139,13 @@ addEventListener('keydown', e => {
 });
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 addEventListener('beforeunload', e => { if (S.dirty){ e.preventDefault(); e.returnValue = ''; } });
-addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(() => {}, 200); });
+// Webフォントが届いたら文字の位置・幅を測り直す
+document.fonts.addEventListener('loadingdone', () => { for (const k in baseCache) delete baseCache[k]; S.pages.forEach(p => renderLayer(p)); });
 
 // ===== 起動 =====
-(async () => {
-  setTool('select'); updateButtons();
-  try {
-    const init = await (await fetch('/initial')).json();
-    if (init.length){
-      S.pages = srcToPages(init);
-      S.fileName = init.length === 1 ? init[0].name : '結合.pdf';
-      fitWidth(false); renderAll();
-    }
-  } catch(e){}
-})();
+setTool('select'); updateButtons();
+$('#stMsg').textContent = 'PDFエンジンを準備中…（初回は10秒ほどかかります）';
+fontReady('gothic');
 </script>
 </body>
 </html>
