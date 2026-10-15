@@ -41,6 +41,9 @@ const handlers = {
     await ensureFonts(JSON.parse(core.api_fonts(s)));
     return toBytes(core.api_export(s));
   },
+  async raster(q){ return toBytes(core.api_raster(JSON.stringify(q))); },
+  async text({src}){ return core.api_text(src); },
+  async close({src}){ core.api_close(src); return true; },
 };
 
 self.onmessage = async e => {

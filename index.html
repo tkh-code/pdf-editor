@@ -97,6 +97,19 @@ dialog .btns button{padding:6px 16px;border-radius:6px;border:1px solid var(--li
 dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
 #toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:100}
 #toast.show{opacity:.92}
+.ann.redact{background:#000;outline:1.5px dashed #e53935;outline-offset:1px}
+.ann.redact.sel{outline:1.5px solid var(--sel)}
+.ann.note{display:flex;align-items:center;justify-content:center;box-shadow:1px 1px 3px rgba(0,0,0,.25)}
+.mark{position:absolute;white-space:pre;pointer-events:none;line-height:1.25}
+.thumb .bm{font-size:11px;color:#b9351f;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb.accent{color:var(--accent);font-weight:bold}
+#numRows .nrow{border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:8px;background:#fafbfc}
+#numRows .nrow .r{margin:3px 0}
+#numRows input[type=number]{width:58px}
+#numRows input.fmt{width:170px;flex:none}
+dialog.wide{width:min(800px,96vw)}
+.note2{color:var(--muted);font-size:12px;line-height:1.6;margin:0 0 10px}
+dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}
 #busy{position:fixed;inset:0;background:rgba(255,255,255,.5);display:none;align-items:center;justify-content:center;z-index:90;font-size:15px}
 #busy.show{display:flex}
 </style>
@@ -108,7 +121,12 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
       <button class="tb" id="bOpen" title="PDFを開く (Ctrl+O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>開く</button>
       <button class="tb" id="bInsert" title="PDF・画像・空白ページを追加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M12 11v6M9 14h6"/></svg>ページ追加 ▾</button>
       <button class="tb primary" id="bSave" title="名前を付けて保存 (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>保存</button>
+      <button class="tb" id="bPrint" title="印刷 (Ctrl+P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>印刷</button>
       <button class="tb" id="bSplit" title="ページを分割・抽出して保存">分割・抽出</button>
+      <button class="tb" id="bConvert" title="画像・テキストへの変換など">変換 ▾</button>
+    </div>
+    <div class="grp">
+      <button class="tb accent" id="bNumber" title="ページ番号・ヘッダー/フッターを一括で付ける"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M10 17h4M12 13v4"/></svg>ページ番号</button>
     </div>
     <div class="grp">
       <button class="tb" id="bUndo" title="元に戻す (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
@@ -119,12 +137,15 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
       <button class="tb" data-tool="text" title="文字を追加 (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14M9 19h6"/></svg>文字追加</button>
       <button class="tb" data-tool="edittext" title="既存の文字を書き換え (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></svg>文字修正</button>
       <button class="tb" data-tool="whiteout" title="白塗り（修正テープ） (W)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="1"/><path d="M7 7v10" stroke-dasharray="2 2"/></svg>白塗り</button>
+      <button class="tb" data-tool="redact" title="墨消し：下の文字や図を完全に消して黒く塗る (B)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="1"/></svg>墨消し</button>
       <button class="tb" data-tool="highlight" title="マーカー (H)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 6 6M4 20l3-1 11-11-3-3L4 16z"/></svg>マーカー</button>
       <button class="tb" data-tool="rect" title="四角 (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14"/></svg></button>
       <button class="tb" data-tool="ellipse" title="楕円 (O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
       <button class="tb" data-tool="line" title="線 (L)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5"/></svg></button>
       <button class="tb" data-tool="arrow" title="矢印 (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5M10 5h9v9"/></svg></button>
       <button class="tb" data-tool="ink" title="手書き (P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-9 7-7s-2 6 1 7 5-6 7-8 3 0 3 0"/></svg>手書き</button>
+      <button class="tb" data-tool="note" title="付箋 (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5"/></svg>付箋</button>
+      <button class="tb" id="bSeal" title="日付印（部署・日付・名前の丸印）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M4.5 9.5h15M4.5 14.5h15"/></svg>日付印</button>
       <button class="tb" id="bImage" title="画像・印鑑画像を配置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>画像</button>
       <button class="tb" id="bStamp" title="スタンプ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="13" width="16" height="5" rx="1"/><path d="M9 13V9a3 3 0 1 1 6 0v4M6 21h12"/></svg>スタンプ ▾</button>
     </div>
@@ -144,6 +165,8 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
       <button class="tb" id="pDup" title="複製">複製</button>
       <button class="tb" id="pBlank" title="選択ページの後に空白ページ">空白</button>
       <button class="tb" id="pDel" title="削除 (Delete)">削除</button>
+      <button class="tb" id="pReplace" title="選択ページを別のファイルのページと差し替え">差替</button>
+      <button class="tb" id="pMark" title="しおり（目次）を付ける">しおり</button>
     </div>
     <div id="thumbs"></div>
   </div>
@@ -155,6 +178,7 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
       <div>または</div>
       <button class="tb primary" id="bOpen2">PDFを開く</button>
       <div style="margin-top:8px">複数のPDFや画像（JPG/PNG）をまとめて入れると結合できます</div>
+      <div>SVG・XPS・テキスト（.txt）も開くとPDFに変換されます</div>
     </div>
   </div>
 
@@ -163,8 +187,9 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
   <div id="status"><span id="stFile">ファイルなし</span><span id="stPage"></span><span id="stMsg"></span></div>
 </div>
 
-<input type="file" id="fOpen" accept=".pdf,application/pdf,image/*" multiple hidden>
-<input type="file" id="fInsert" accept=".pdf,application/pdf,image/*" multiple hidden>
+<input type="file" id="fOpen" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
+<input type="file" id="fInsert" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
+<input type="file" id="fReplace" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
 <input type="file" id="fImage" accept="image/*" hidden>
 
 <dialog id="dSave"><form method="dialog">
@@ -173,15 +198,8 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
   <div class="r"><label>対象</label>
     <label><input type="radio" name="sRange" value="all" checked> すべてのページ</label>
     <label><input type="radio" name="sRange" value="sel"> 選択中のページのみ</label></div>
-  <fieldset><legend><label><input type="checkbox" id="pnOn"> ページ番号を付ける</label></legend>
-    <div class="r"><label>位置</label><select id="pnPos">
-      <option value="bottom-center">下・中央</option><option value="bottom-right">下・右</option><option value="bottom-left">下・左</option>
-      <option value="top-center">上・中央</option><option value="top-right">上・右</option><option value="top-left">上・左</option></select>
-      <label>書式</label><select id="pnFmt"><option value="{n}">1</option><option value="- {n} -">- 1 -</option><option value="{n} / {total}">1 / 10</option><option value="P.{n}">P.1</option></select></div>
-    <div class="r"><label>開始番号</label><input type="number" id="pnStart" value="1" style="width:60px">
-      <label>付け始めるページ</label><input type="number" id="pnFrom" value="1" min="1" style="width:60px">
-      <label>文字サイズ</label><input type="number" id="pnSize" value="10" style="width:56px"></div>
-  </fieldset>
+  <div class="r"><label>ページ番号</label><span id="sNumInfo"></span><button type="button" id="sNumEdit">設定…</button></div>
+  <div class="r"><label>用紙サイズ</label><select id="sPaper"><option value="">そのまま</option><option value="A4">A4 にそろえる（A3図面などを縮小）</option><option value="A3">A3 にそろえる</option></select></div>
   <fieldset><legend><label><input type="checkbox" id="wmOn"> 透かし文字を入れる</label></legend>
     <div class="r"><label>文字</label><input type="text" id="wmText" value="社外秘"></div>
     <div class="r"><label>サイズ</label><input type="number" id="wmSize" value="80" style="width:60px">
@@ -205,6 +223,43 @@ dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
   <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="spOk">保存</button></div>
 </form></dialog>
 
+<dialog id="dNum" class="wide"><form method="dialog">
+  <h2>ページ番号・ヘッダー/フッター</h2>
+  <p class="note2">計算書などに通しのページ番号を一括で付けます。表紙・目次を飛ばす、章ごとに番号を変える、などは「行を追加」で範囲ごとに設定します。
+    文字だけ入れれば工事名などのヘッダー/フッターにもなります。設定はページにすぐ表示され、保存時に書き込まれます。</p>
+  <div id="numRows"></div>
+  <div class="r"><button type="button" id="numAdd">＋ 行を追加</button>
+    <span style="color:var(--muted)">ひな形：</span>
+    <button type="button" data-preset="calc">計算書（表紙を除き P.1〜）</button>
+    <button type="button" data-preset="all">全ページ 1, 2, 3…</button>
+    <button type="button" data-preset="total">1 / 全体</button>
+    <button type="button" data-preset="header">ヘッダーに工事名</button></div>
+  <details style="margin-top:6px"><summary>書式に使える記号</summary>
+    <div class="note2" style="margin-top:6px">{n} 番号　{total} その範囲の最後の番号　{i} ローマ数字（i, ii）　{I} ローマ数字（I, II）　{date} 今日の日付　{file} ファイル名<br>
+    例：「P.{n}」「- {n} -」「{n} / {total}」「構-{n}」「〇〇新築工事　構造計算書」</div></details>
+  <div class="btns"><button type="button" id="numClear">すべて消す</button><button class="ok" value="ok">閉じる</button></div>
+</form></dialog>
+
+<dialog id="dSeal"><form method="dialog">
+  <h2>日付印</h2>
+  <div class="r"><label>上段</label><input type="text" id="slTop" placeholder="例：構造設計"></div>
+  <div class="r"><label>日付</label><input type="text" id="slDate" style="flex:none;width:120px">
+    <select id="slDateFmt"><option value="yy">26.10.15</option><option value="yyyy">2026.10.15</option><option value="r">R8.10.15</option></select></div>
+  <div class="r"><label>下段</label><input type="text" id="slBottom" placeholder="例：山田"></div>
+  <div class="r"><label>大きさ</label><input type="number" id="slSize" value="18" min="8" max="60" style="width:60px"> mm
+    <label style="min-width:auto;margin-left:12px">色</label><input type="color" id="slColor" value="#d00000"></div>
+  <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="slOk">押す</button></div>
+</form></dialog>
+
+<dialog id="dConv"><form method="dialog">
+  <h2>画像に変換</h2>
+  <div class="r"><label>形式</label><select id="cvFmt"><option value="png">PNG（きれい・大きめ）</option><option value="jpg">JPEG（小さめ）</option></select></div>
+  <div class="r"><label>解像度</label><select id="cvDpi"><option value="96">96 dpi（画面用）</option><option value="150" selected>150 dpi（標準）</option><option value="200">200 dpi</option><option value="300">300 dpi（印刷用）</option></select></div>
+  <div class="r"><label>対象</label><label><input type="radio" name="cvRange" value="all" checked> すべてのページ</label><label><input type="radio" name="cvRange" value="sel"> 選択中のページ</label></div>
+  <p class="note2">書き込んだ文字やページ番号も含めて画像になります。複数ページは保存先フォルダを選ぶと、ページごとのファイルで保存します。</p>
+  <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="cvOk">変換して保存</button></div>
+</form></dialog>
+
 <div id="toast"></div>
 <div id="busy">処理中…</div>
 
@@ -222,7 +277,7 @@ const FONTS = {
 const LH = 1.25;            // 行間（文字サイズ比）
 const S = {
   pages: [], zoom: 1, tool: 'select', sel: null, selPages: new Set(), anchor: null,
-  undo: [], redo: [], dirty: false, fileName: '', cur: null, clip: null,
+  undo: [], redo: [], dirty: false, fileName: '', cur: null, clip: null, marks: [],
   styles: {
     text:     {font:'gothic', size:12, color:'#000000'},
     stamp:    {font:'gothic-b', size:14, color:'#d00000'},
@@ -233,6 +288,8 @@ const S = {
     line:     {color:'#e00000', width:2},
     arrow:    {color:'#e00000', width:2},
     ink:      {color:'#0033cc', width:2},
+    redact:   {fill:'#000000'},
+    note:     {font:'gothic', size:10, color:'#000000', fill:'#fff59d'},
   },
 };
 const spanCache = new Map();
@@ -278,9 +335,10 @@ function loadImg(img, p, scale){
   pageImage(p, scale).then(url => { if (img.dataset.key === key) img.src = url; }).catch(() => {});
 }
 const imageURLs = {};   // 配置した画像 id → 表示用URL
-function snapshot(){ return JSON.stringify({pages:S.pages}); }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function snapshot(){ return JSON.stringify({pages:S.pages, marks:S.marks}); }
 function pushUndo(){ S.undo.push(snapshot()); if (S.undo.length > 100) S.undo.shift(); S.redo = []; S.dirty = true; updateButtons(); }
-function restore(json){ const o = JSON.parse(json); S.pages = o.pages; S.sel = null; S.selPages = new Set([...S.selPages].filter(id => pageById(id))); renderAll(); }
+function restore(json){ const o = JSON.parse(json); S.pages = o.pages; S.marks = o.marks || []; S.sel = null; S.selPages = new Set([...S.selPages].filter(id => pageById(id))); renderAll(); }
 function undo(){ if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); updateButtons(); }
 function redo(){ if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); updateButtons(); }
 function updateButtons(){
@@ -341,7 +399,7 @@ function srcToPages(srcs){
   return out;
 }
 async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
-  files = [...files].filter(f => /pdf$|^image\//i.test(f.type) || /\.(pdf|png|jpe?g|gif|bmp|tiff?)$/i.test(f.name));
+  files = [...files].filter(f => /pdf$|^image\//i.test(f.type) || /\.(pdf|png|jpe?g|gif|bmp|tiff?|svg|xps|oxps|txt|epub)$/i.test(f.name));
   if (!files.length) return;
   if (mode === 'open' && S.dirty && S.pages.length && !confirm('編集中の内容は破棄されます。開きますか？')) return;
   const srcs = await uploadFiles(files);
@@ -383,7 +441,7 @@ function renderThumbs(){
     d.className = 'thumb' + (S.selPages.has(p.id) ? ' sel' : '') + (S.cur === p.id ? ' cur' : '');
     d.draggable = true; d.dataset.pid = p.id;
     const [w,h] = vis(p); const sc = Math.min(130/w, 170/h);
-    d.innerHTML = `<div class="tw" style="width:${Math.round(w*sc)+4}px;height:${Math.round(h*sc)+4}px"><img data-sc="${sc*1.5}" style="width:${Math.round(w*sc)}px;height:${Math.round(h*sc)}px">${p.anns.length ? '<span class="badge">編集</span>' : ''}</div><div class="num">${i+1}</div>`;
+    d.innerHTML = `<div class="tw" style="width:${Math.round(w*sc)+4}px;height:${Math.round(h*sc)+4}px"><img data-sc="${sc*1.5}" style="width:${Math.round(w*sc)}px;height:${Math.round(h*sc)}px">${p.anns.length ? '<span class="badge">編集</span>' : ''}</div><div class="num">${i+1}</div>${p.bookmark ? `<div class="bm" title="${esc(p.bookmark)}">🔖 ${esc(p.bookmark)}</div>` : ''}`;
     thumbsEl.appendChild(d);
     thumbObs.observe(d.querySelector('img'));
   });
@@ -448,7 +506,7 @@ function renderLayer(p, el){
   const layer = el.querySelector('.layer'); layer.innerHTML = '';
   const z = S.zoom;
   // 白塗り・マーカーは下、その他は上
-  const order = a => (a.type === 'whiteout' ? 0 : a.type === 'highlight' ? 1 : 2);
+  const order = a => ((a.type === 'whiteout' || a.type === 'redact') ? 0 : a.type === 'highlight' ? 1 : 2);
   const list = [...p.anns].sort((a,b) => order(a) - order(b));
   // 文字修正の元文字を隠すマスク
   for (const a of p.anns) if (a.type === 'edittext'){
@@ -478,6 +536,14 @@ function renderLayer(p, el){
         d.appendChild(t); break;
       }
       case 'whiteout': d.style.background = a.fill || '#fff'; break;
+      case 'redact': d.style.background = a.fill || '#000'; break;
+      case 'note': {
+        const t = document.createElement('div'); t.className = 'txt'; t.textContent = a.text;
+        Object.assign(t.style, {fontFamily:font.css, fontWeight:font.weight, fontSize:a.size*z+'px', lineHeight:LH, color:a.color});
+        d.style.background = a.fill || '#fff59d';
+        d.appendChild(t); break;
+      }
+      case 'dateseal': d.innerHTML = sealSVG(a); break;
       case 'highlight': d.style.background = a.color; d.style.opacity = a.opacity ?? .35; break;
       case 'rect': case 'ellipse':
         Object.assign(d.style, {border:`${a.width*z}px solid ${a.color}`, background:a.fill || 'transparent', borderRadius: a.type==='ellipse' ? '50%' : '0'});
@@ -498,12 +564,73 @@ function renderLayer(p, el){
       if (a.type === 'line' || a.type === 'arrow'){
         for (const k of ['1','2']){ const h = document.createElement('div'); h.className = 'h pt'; h.dataset.h = 'p'+k;
           h.style.left = (a['x'+k]-b.x)*z+'px'; h.style.top = (a['y'+k]-b.y)*z+'px'; d.appendChild(h); }
-      } else if (!['text','edittext','ink'].includes(a.type)){
+      } else if (!['text','edittext','ink','note'].includes(a.type)){
         const h = document.createElement('div'); h.className = 'h se'; h.dataset.h = 'se'; d.appendChild(h);
       }
     }
     layer.appendChild(d);
   }
+  // ページ番号・ヘッダー/フッター（保存時に書き込む内容を表示）
+  const [W, H] = vis(p);
+  for (const mk of pageMarks(S.pages.indexOf(p))){
+    const f = FONTS[mk.font] || FONTS.gothic;
+    const [x, base] = markPos(mk, W, H, measureText(mk.text, mk.font, mk.size).w);
+    const m = document.createElement('div'); m.className = 'mark'; m.textContent = mk.text;
+    Object.assign(m.style, {left:x*z+'px', top:(base - baselineRatio(mk.font)*mk.size)*z+'px', fontFamily:f.css, fontWeight:f.weight, fontSize:mk.size*z+'px', color:mk.color});
+    layer.appendChild(m);
+  }
+}
+
+// ===== ページ番号・ヘッダー/フッター =====
+const MM = 72 / 25.4;
+function roman(n){
+  if (n <= 0 || n >= 4000) return String(n);
+  const t = [[1000,'m'],[900,'cm'],[500,'d'],[400,'cd'],[100,'c'],[90,'xc'],[50,'l'],[40,'xl'],[10,'x'],[9,'ix'],[5,'v'],[4,'iv'],[1,'i']];
+  let s = ''; for (const [v, r] of t) while (n >= v){ s += r; n -= v; } return s;
+}
+function pageMarks(i){   // i: 0始まりのページ位置 → そのページに書く文字の一覧
+  const out = [], N = S.pages.length;
+  if (i < 0) return out;
+  for (const r of S.marks){
+    const from = Math.max(1, +r.from || 1), to = Math.min(N, +r.to || N);
+    if (i + 1 < from || i + 1 > to || !r.fmt) continue;
+    const n = (+r.start || 0) + (i + 1 - from), last = (+r.start || 0) + (to - from);
+    const text = r.fmt.replace(/\{n\}/g, n).replace(/\{total\}/g, last).replace(/\{i\}/g, roman(n)).replace(/\{I\}/g, roman(n).toUpperCase())
+      .replace(/\{date\}/g, fmtDate('yyyy')).replace(/\{file\}/g, (S.fileName || '').replace(/\.pdf$/i, ''));
+    out.push({text, pos:r.pos, size:+r.size || 10, font:r.font || 'gothic', color:r.color || '#000000', mx:(+r.mx || 0)*MM, my:(+r.my || 0)*MM});
+  }
+  return out;
+}
+function markPos(mk, W, H, tw){   // pdfcore.py の mark_pos と同じ計算
+  const x = mk.pos.endsWith('center') ? (W - tw)/2 : mk.pos.endsWith('right') ? W - mk.mx - tw : mk.mx;
+  const y = mk.pos.startsWith('top') ? mk.my + mk.size*0.8 : H - mk.my;
+  return [x, y];
+}
+
+// ===== 日付印 =====
+function sealLayout(a){   // pdfcore.py の seal_layout と同じ計算
+  const D = a.w, r = D/2, cx = a.x + r, cy = a.y + r, band = 0.17*D, out = [];
+  const fit = (text, size0, avail) => Math.min(size0, avail / (measureText(text, a.font, 100).w/100 || 1));
+  if (a.date){ const s = fit(a.date, 0.17*D, 2*Math.sqrt(r*r - band*band)*0.9); out.push([a.date, s, cy + s*0.36]); }
+  for (const [text, sign] of [[a.top, -1], [a.bottom, 1]]){
+    if (!text) continue;
+    const dy = (band + r)/2, s = fit(text, 0.19*D, 2*Math.sqrt(r*r - dy*dy)*0.85);
+    out.push([text, s, cy + sign*dy + s*0.36]);
+  }
+  return {cx, cy, r, band, texts: out};
+}
+function sealSVG(a){
+  const {cx, cy, r, band, texts} = sealLayout(a), lw = Math.max(0.8, 2*r*0.025), hw = Math.sqrt(r*r - band*band);
+  const f = FONTS[a.font] || FONTS.gothic;
+  return `<svg viewBox="${a.x} ${a.y} ${a.w} ${a.h}"><circle cx="${cx}" cy="${cy}" r="${r - lw/2}" fill="none" stroke="${a.color}" stroke-width="${lw}"/>` +
+    [-band, band].map(dy => `<line x1="${cx-hw}" y1="${cy+dy}" x2="${cx+hw}" y2="${cy+dy}" stroke="${a.color}" stroke-width="${lw*0.8}"/>`).join('') +
+    texts.map(([t, s, base]) => `<text x="${cx}" y="${base}" text-anchor="middle" font-family='${f.css}' font-weight="${f.weight}" font-size="${s}" fill="${a.color}">${esc(t)}</text>`).join('') + '</svg>';
+}
+function fmtDate(kind){
+  const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  if (kind === 'yy') return `${String(y).slice(2)}.${m}.${dd}`;
+  if (kind === 'r') return `R${y-2018}.${m}.${dd}`;
+  return `${y}.${m}.${dd}`;
 }
 
 // ===== 既存テキスト（文字修正ツール） =====
@@ -564,7 +691,7 @@ function beginEdit(p, a){
   // 入力のたびに反映（確定操作を忘れても保存に含まれるように）
   const sync = () => {
     a.text = el.innerText.replace(/\n$/, ''); S.dirty = true;
-    if (a.type === 'stamp'){ fitStamp(a); Object.assign(el.parentElement.style, {width:a.w*S.zoom+'px', height:a.h*S.zoom+'px'}); }
+    if (a.type === 'stamp' || a.type === 'note'){ fitStamp(a); Object.assign(el.parentElement.style, {width:a.w*S.zoom+'px', height:a.h*S.zoom+'px'}); }
   };
   el.oninput = sync;
   el.onkeydown = e => { if (e.key === 'Escape'){ el.blur(); } e.stopPropagation(); };
@@ -598,7 +725,8 @@ pagesEl.addEventListener('pointerdown', e => {
       const [x,y] = ptFromEvent(ev, pel);
       if (!moved){ if (Math.hypot(x-x0,y-y0)*S.zoom < 3) return; pushUndo(); moved = true; }
       if (handle === 'se'){ a.w = Math.max(4, x - a.x); a.h = Math.max(4, y - a.y);
-        if (a.type === 'image' && !ev.shiftKey && a.ratio){ a.h = a.w / a.ratio; } }
+        if (a.type === 'image' && !ev.shiftKey && a.ratio){ a.h = a.w / a.ratio; }
+        if (a.type === 'dateseal'){ a.h = a.w; } }
       else if (handle === 'p1'){ a.x1 = x; a.y1 = y; }
       else if (handle === 'p2'){ a.x2 = x; a.y2 = y; }
       else moveAnn(a, x-lx, y-ly);
@@ -619,6 +747,17 @@ pagesEl.addEventListener('pointerdown', e => {
   }
   if (S.tool === 'select'){ if (S.sel){ const op = pageById(S.sel.pid); S.sel = null; op && renderLayer(op); renderProps(); } return; }
 
+  if (S.tool === 'note'){
+    e.preventDefault();
+    pushUndo();
+    const st = S.styles.note;
+    const a = {id:nid(), type:'note', text:'', font:st.font, size:st.size, color:st.color, fill:st.fill, x:x0, y:y0, w:0, h:0};
+    fitStamp(a);
+    p.anns.push(a); S.sel = {pid:p.id, aid:a.id};
+    renderLayer(p); renderProps();
+    editAfterRelease(p, a);
+    return;
+  }
   if (S.tool === 'text'){
     e.preventDefault();
     pushUndo();
@@ -660,7 +799,7 @@ pagesEl.addEventListener('pointerdown', e => {
     const b = annBox(a);
     const tiny = (tool === 'ink') ? a.points.length < 2 : (tool === 'line' || tool === 'arrow') ? Math.hypot(a.x2-a.x1, a.y2-a.y1) < 2 : (a.w < 2 || a.h < 2);
     if (tiny){ p.anns = p.anns.filter(x => x !== a); S.undo.pop(); }
-    else if (tool !== 'ink' && tool !== 'highlight' && tool !== 'whiteout') S.sel = {pid:p.id, aid:a.id};
+    else if (!['ink','highlight','whiteout','redact'].includes(tool)) S.sel = {pid:p.id, aid:a.id};
     renderLayer(p); renderProps(); renderThumbBadge(p); updateButtons();
   };
   addEventListener('pointermove', mv); addEventListener('pointerup', up);
@@ -668,7 +807,8 @@ pagesEl.addEventListener('pointerdown', e => {
 pagesEl.addEventListener('dblclick', e => {
   const annEl = e.target.closest('.ann'); if (!annEl) return;
   const p = pageById(annEl.dataset.pid), a = p?.anns.find(a => a.id === annEl.dataset.aid);
-  if (a && ['text','edittext','stamp'].includes(a.type)){ pushUndo(); beginEdit(p, a); }
+  if (a && ['text','edittext','stamp','note'].includes(a.type)){ pushUndo(); beginEdit(p, a); }
+  if (a && a.type === 'dateseal') openSeal(p, a);
 });
 function renderThumbBadge(p){
   const tw = thumbsEl.querySelector(`.thumb[data-pid="${p.id}"] .tw`); if (!tw) return;
@@ -699,7 +839,7 @@ function renderProps(){
   if (S.sel){ p = pageById(S.sel.pid); a = p?.anns.find(x => x.id === S.sel.aid); if (!a) S.sel = null; }
   const target = a || S.styles[S.tool] || null;
   const kind = a ? a.type : S.tool;
-  const names = {select:'選択',text:'文字',edittext:'文字修正',whiteout:'白塗り',highlight:'マーカー',rect:'四角',ellipse:'楕円',line:'線',arrow:'矢印',ink:'手書き',image:'画像',stamp:'スタンプ'};
+  const names = {select:'選択',text:'文字',edittext:'文字修正',whiteout:'白塗り',highlight:'マーカー',rect:'四角',ellipse:'楕円',line:'線',arrow:'矢印',ink:'手書き',image:'画像',stamp:'スタンプ',redact:'墨消し',note:'付箋',dateseal:'日付印'};
   let h = `<h3>${a ? '選択中：' + names[kind] : 'ツール：' + names[kind]}</h3>`;
   const fields = [];
   if (target){
@@ -707,13 +847,14 @@ function renderProps(){
     if ('size' in target) fields.push(['size', '文字サイズ(pt)', `<input type="number" data-k="size" min="4" max="300" step="0.5" value="${target.size}">`]);
     if ('color' in target) fields.push(['color', '色', `<input type="color" data-k="color" value="${target.color}">`]);
     if ('width' in target) fields.push(['width', '線の太さ(pt)', `<input type="number" data-k="width" min="0.25" max="30" step="0.25" value="${target.width}">`]);
-    if ('fill' in target && kind !== 'whiteout') fields.push(['fill', '塗りつぶし', `<label><input type="checkbox" data-k="fillOn" ${target.fill?'checked':''}> </label><input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
-    if (kind === 'whiteout') fields.push(['fill', '塗る色', `<input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if ('fill' in target && !['whiteout','redact','note'].includes(kind)) fields.push(['fill', '塗りつぶし', `<label><input type="checkbox" data-k="fillOn" ${target.fill?'checked':''}> </label><input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if (['whiteout','redact','note'].includes(kind)) fields.push(['fill', kind === 'note' ? '付箋の色' : '塗る色', `<input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
     if ('opacity' in target) fields.push(['opacity', '濃さ', `<input type="range" data-k="opacity" min="0.1" max="1" step="0.05" value="${target.opacity}">`]);
   }
   h += fields.map(([k, l, inp]) => `<div class="row"><label>${l}</label><span>${inp}</span></div>`).join('');
   if (a){
-    if (['image','rect','ellipse','whiteout','highlight','stamp'].includes(a.type))
+    if (a.type === 'dateseal') h += `<div class="row"><button class="tb" id="aSeal">文字・日付を変更…</button></div>`;
+    if (['image','rect','ellipse','whiteout','highlight','stamp','note','dateseal','redact'].includes(a.type))
       h += `<div class="row"><label>位置 X/Y (pt)</label><span>${a.x.toFixed(1)} / ${a.y.toFixed(1)}</span></div>`;
     h += `<div class="row" style="margin-top:12px"><button class="tb" id="aDup">複製</button><button class="tb" id="aDel" style="color:#c00">削除</button></div>`;
     if (a.type === 'edittext') h += `<div class="hint">元の文字は保存時に削除され、この文字に置き換わります。</div>`;
@@ -736,13 +877,14 @@ function renderProps(){
       else if (k === 'fill' && kind !== 'whiteout'){ box.querySelector('[data-k=fillOn]').checked = true; t.fill = v; }
       else t[k] = v;
       if (a){
-        if (a.type === 'stamp') fitStamp(a);
+        if (a.type === 'stamp' || a.type === 'note') fitStamp(a);
         renderLayer(p);
       }
     });
     inp.addEventListener('change', () => { pushed = false; });
   });
   $('#aDel') && ($('#aDel').onclick = deleteSelectedAnn);
+  $('#aSeal') && ($('#aSeal').onclick = () => openSeal(p, a));
   $('#aDup') && ($('#aDup').onclick = () => { copyAnn(); pasteAnn(); });
 }
 function hintFor(k){
@@ -756,6 +898,9 @@ function hintFor(k){
     line: 'ドラッグで線。Shiftで45°単位。', arrow: 'ドラッグで矢印。Shiftで45°単位。',
     ink: 'ドラッグで自由に書けます。', image: '角のハンドルで大きさを変更。Shiftで縦横比を自由に。',
     stamp: 'ダブルクリックで文字を変更できます。',
+    redact: 'ドラッグで範囲を囲むと、保存時にその範囲の文字・画像・図形を完全に削除して塗りつぶします（白塗りと違い、下の文字データも残りません）。',
+    note: 'ページ上をクリックして付箋を貼り、メモを入力します。ダブルクリックで書き換え。',
+    dateseal: 'ダブルクリックで部署・日付・名前を変更。角のハンドルで大きさを変更。',
   }[k] || '';
 }
 function fitStamp(a){ const m = measureText(a.text, a.font, a.size); const pad = a.size*0.35; a.w = m.w + pad*2; a.h = m.h + pad*2; }
@@ -882,7 +1027,7 @@ function rotatePages(delta){
         if (a.ox0 != null) [a.ox0,a.oy0,a.ox1,a.oy1] = fr(a.ox0,a.oy0,a.ox1,a.oy1);
       } else {
         const [x0,y0,x1,y1] = fr(a.x, a.y, a.x+a.w, a.y+a.h);
-        if (a.type === 'image' || a.type === 'stamp'){ const cx=(x0+x1)/2, cy=(y0+y1)/2; a.x = cx-a.w/2; a.y = cy-a.h/2; }
+        if (['image','stamp','note','dateseal'].includes(a.type)){ const cx=(x0+x1)/2, cy=(y0+y1)/2; a.x = cx-a.w/2; a.y = cy-a.h/2; }
         else { a.x=x0; a.y=y0; a.w=x1-x0; a.h=y1-y0; }
       }
     }
@@ -1006,11 +1151,14 @@ viewer.addEventListener('wheel', e => { if (e.ctrlKey){ e.preventDefault(); setZ
 async function exportSpec(pages, opts){
   const used = new Set(pages.flatMap(p => p.anns.filter(a => a.font).map(a => a.font)));
   await Promise.all([...used].filter(k => FONTS[k]?.web).map(fontReady));
-  return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh,
-    annotations: p.anns.filter(a => !(a.type === 'text' && !a.text.trim())).map(a => {
+  const marks = pages.map(p => pageMarks(S.pages.indexOf(p)));
+  await Promise.all([...new Set(marks.flat().map(m => m.font))].filter(k => FONTS[k]?.web).map(fontReady));
+  opts = {...opts, marks};
+  return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh, bookmark:p.bookmark || '',
+    annotations: p.anns.filter(a => !((a.type === 'text' || a.type === 'note') && !a.text.trim())).map(a => {
       const o = {...a};
       if (a.type === 'text' || a.type === 'edittext'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; }
-      if (a.type === 'stamp'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; o.pad = a.size*0.35; }
+      if (a.type === 'stamp' || a.type === 'note'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; o.pad = a.size*0.35; }
       return o;
     })})), options: opts};
 }
@@ -1019,21 +1167,23 @@ $('#bSave').onclick = () => {
   $('#sName').value = S.fileName || 'document.pdf';
   document.querySelector('input[name=sRange][value=sel]').disabled = S.selPages.size === 0;
   if (!S.selPages.size) document.querySelector('input[name=sRange][value=all]').checked = true;
+  $('#sNumInfo').textContent = S.marks.length ? `${S.marks.length} 件設定済み（そのまま書き込みます）` : 'なし';
   $('#dSave').showModal();
 };
 function saveOptions(){
   return {
-    pageNumbers: $('#pnOn').checked ? {enabled:true, pos:$('#pnPos').value, format:$('#pnFmt').value, start:+$('#pnStart').value, from:+$('#pnFrom').value, size:+$('#pnSize').value} : null,
+    paper: $('#sPaper').value,
     watermark: $('#wmOn').checked ? {enabled:true, text:$('#wmText').value, size:+$('#wmSize').value, color:$('#wmColor').value, opacity:$('#wmOpacity').value/100} : null,
     compress: $('#sCompress').checked,
     password: $('#pwOn').checked ? $('#pwVal').value : '',
   };
 }
-async function saveBlob(name, getBlob){
+async function saveBlob(name, getBlob, type){
   // 保存先を選べるブラウザ（Edge/Chrome）はダイアログで、それ以外はダウンロード
+  type = type || {description:'PDF', accept:{'application/pdf':['.pdf']}};
   if (window.showSaveFilePicker){
     let handle;
-    try { handle = await showSaveFilePicker({suggestedName:name, types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]}); }
+    try { handle = await showSaveFilePicker({suggestedName:name, types:[type]}); }
     catch(e){ if (e.name === 'AbortError') return false; handle = null; }
     if (handle){
       const blob = await getBlob(); const w = await handle.createWritable(); await w.write(blob); await w.close();
@@ -1115,6 +1265,7 @@ addEventListener('keydown', e => {
   if (c && k === 'y'){ e.preventDefault(); redo(); return; }
   if (c && k === 's'){ e.preventDefault(); $('#bSave').click(); return; }
   if (c && k === 'o'){ e.preventDefault(); $('#fOpen').click(); return; }
+  if (c && k === 'p'){ e.preventDefault(); printPDF(); return; }
   if (c && k === 'c'){ copyAnn(); return; }
   if (c && k === 'v'){ e.preventDefault(); pasteAnn(); return; }
   if (c && (k === '+' || k === '=' || k === ';')){ e.preventDefault(); setZoom(S.zoom*1.2); return; }
@@ -1134,13 +1285,202 @@ addEventListener('keydown', e => {
   }
   if (k === 'escape'){ if (S.sel){ const p = pageById(S.sel.pid); S.sel = null; p && renderLayer(p); renderProps(); } else setTool('select'); return; }
   if (c || e.altKey) return;
-  const map = {v:'select', t:'text', e:'edittext', w:'whiteout', h:'highlight', r:'rect', o:'ellipse', l:'line', a:'arrow', p:'ink'};
+  const map = {v:'select', t:'text', e:'edittext', w:'whiteout', h:'highlight', r:'rect', o:'ellipse', l:'line', a:'arrow', p:'ink', b:'redact', n:'note'};
   if (map[k]) setTool(map[k]);
 });
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 addEventListener('beforeunload', e => { if (S.dirty){ e.preventDefault(); e.returnValue = ''; } });
 // Webフォントが届いたら文字の位置・幅を測り直す
 document.fonts.addEventListener('loadingdone', () => { for (const k in baseCache) delete baseCache[k]; S.pages.forEach(p => renderLayer(p)); });
+
+// ===== ページ番号ダイアログ =====
+const POS_OPTS = [['bottom-center','下・中央'],['bottom-right','下・右'],['bottom-left','下・左'],['top-center','上・中央'],['top-right','上・右'],['top-left','上・左']];
+const newRule = o => ({from:1, to:'', fmt:'{n}', start:1, pos:'bottom-center', size:10, mx:15, my:10, font:'gothic', color:'#000000', ...o});
+function renderNumRows(){
+  const box = $('#numRows');
+  if (!S.marks.length){ box.innerHTML = '<div class="note2">まだ設定がありません。「行を追加」かひな形を押してください。</div>'; return; }
+  box.innerHTML = S.marks.map((r, i) => `<div class="nrow" data-i="${i}">
+    <div class="r"><b style="min-width:auto">${i+1}.</b> ページ <input type="number" data-k="from" min="1" value="${r.from}"> 〜 <input type="number" data-k="to" min="1" value="${r.to}" placeholder="最後"> に
+      <input type="text" class="fmt" data-k="fmt" value="${esc(r.fmt)}" list="fmtList">　開始番号 <input type="number" data-k="start" value="${r.start}">
+      <button type="button" data-del="${i}" title="この行を消す">×</button></div>
+    <div class="r">位置 <select data-k="pos">${POS_OPTS.map(([v,l]) => `<option value="${v}" ${r.pos===v?'selected':''}>${l}</option>`).join('')}</select>
+      文字 <input type="number" data-k="size" min="4" max="72" step="0.5" value="${r.size}">pt
+      余白 横 <input type="number" data-k="mx" min="0" step="1" value="${r.mx}"> 縦 <input type="number" data-k="my" min="0" step="1" value="${r.my}">mm
+      <select data-k="font">${Object.entries(FONTS).map(([k,f]) => `<option value="${k}" ${r.font===k?'selected':''}>${f.label}</option>`).join('')}</select>
+      <input type="color" data-k="color" value="${r.color}"></div></div>`).join('') +
+    `<datalist id="fmtList"><option value="{n}"><option value="P.{n}"><option value="- {n} -"><option value="{n} / {total}"><option value="{i}"><option value="構-{n}"></datalist>`;
+  box.querySelectorAll('[data-k]').forEach(inp => inp.addEventListener('input', () => {
+    const r = S.marks[+inp.closest('.nrow').dataset.i], k = inp.dataset.k;
+    r[k] = inp.type === 'number' ? (inp.value === '' ? '' : +inp.value) : inp.value;
+    refreshMarks();
+  }));
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { S.marks.splice(+b.dataset.del, 1); renderNumRows(); refreshMarks(); });
+}
+function refreshMarks(){ clearTimeout(refreshMarks.t); refreshMarks.t = setTimeout(() => S.pages.forEach(p => renderLayer(p)), 120); S.dirty = true; updateButtons(); }
+let numBefore = null;
+function openNumbers(){
+  if (!S.pages.length) return toast('先にPDFを開いてください');
+  numBefore = snapshot();
+  renderNumRows(); $('#dNum').showModal();
+}
+$('#bNumber').onclick = openNumbers;
+$('#sNumEdit').onclick = () => { $('#dSave').close(); openNumbers(); };
+$('#dNum').addEventListener('close', () => {
+  if (numBefore && numBefore !== snapshot()){ S.undo.push(numBefore); S.redo = []; S.dirty = true; updateButtons(); }
+  numBefore = null;
+});
+$('#numAdd').onclick = () => { const last = S.marks[S.marks.length-1]; S.marks.push(newRule(last ? {pos:last.pos, size:last.size, font:last.font} : {})); renderNumRows(); refreshMarks(); };
+$('#numClear').onclick = () => { S.marks = []; renderNumRows(); refreshMarks(); };
+document.querySelectorAll('#dNum [data-preset]').forEach(b => b.onclick = () => {
+  const N = S.pages.length;
+  const add = {
+    calc:   [newRule({from:2, fmt:'P.{n}', start:1})],
+    all:    [newRule({fmt:'{n}'})],
+    total:  [newRule({fmt:'{n} / {total}'})],
+    header: [newRule({fmt:(S.fileName || '工事名').replace(/\.pdf$/i, ''), pos:'top-right', size:9, start:1})],
+  }[b.dataset.preset];
+  if (b.dataset.preset !== 'header') S.marks = S.marks.filter(r => /\{n\}|\{i\}|\{I\}/.test(r.fmt) ? false : true);
+  S.marks.push(...add); renderNumRows(); refreshMarks();
+  if (b.dataset.preset === 'calc' && N < 2) toast('ページが1枚しかありません');
+});
+
+// ===== 日付印 =====
+let sealTarget = null;
+function loadSealPrefs(){ try { return JSON.parse(localStorage.getItem('pdfedit.seal') || '{}'); } catch(e){ return {}; } }
+function openSeal(p, a){
+  sealTarget = a ? {pid:p.id, aid:a.id} : null;
+  const pr = loadSealPrefs();
+  $('#slTop').value = a ? a.top : (pr.top || '');
+  $('#slBottom').value = a ? a.bottom : (pr.bottom || '');
+  $('#slDateFmt').value = pr.fmt || 'yy';
+  $('#slDate').value = a ? a.date : fmtDate($('#slDateFmt').value);
+  $('#slSize').value = a ? Math.round(a.w / MM) : (pr.size || 18);
+  $('#slColor').value = a ? a.color : (pr.color || '#d00000');
+  $('#slOk').textContent = a ? '変更' : '押す';
+  $('#dSeal').showModal();
+}
+$('#slDateFmt').onchange = () => { $('#slDate').value = fmtDate($('#slDateFmt').value); };
+$('#bSeal').onclick = () => { if (!S.pages.length) return toast('先にPDFを開いてください'); openSeal(null, null); };
+$('#slOk').onclick = async e => {
+  e.preventDefault();
+  const v = {top:$('#slTop').value.trim(), date:$('#slDate').value.trim(), bottom:$('#slBottom').value.trim(), color:$('#slColor').value};
+  const D = Math.max(8, +$('#slSize').value || 18) * MM;
+  try { localStorage.setItem('pdfedit.seal', JSON.stringify({top:v.top, bottom:v.bottom, fmt:$('#slDateFmt').value, size:+$('#slSize').value, color:v.color})); } catch(err){}
+  $('#dSeal').close();
+  await fontReady('gothic');
+  pushUndo();
+  let p, a;
+  if (sealTarget){ p = pageById(sealTarget.pid); a = p?.anns.find(x => x.id === sealTarget.aid); }
+  if (a){ const c = [a.x + a.w/2, a.y + a.h/2]; Object.assign(a, v, {w:D, h:D, x:c[0]-D/2, y:c[1]-D/2}); }
+  else {
+    p = pageById(S.cur) || S.pages[0]; const c = visibleCenter(p);
+    a = {id:nid(), type:'dateseal', font:'gothic', ...v, x:c[0]-D/2, y:c[1]-D/2, w:D, h:D};
+    p.anns.push(a); setTool('select');
+  }
+  S.sel = {pid:p.id, aid:a.id}; renderLayer(p); renderProps(); renderThumbBadge(p);
+};
+
+// ===== 差し替え・しおり =====
+$('#pReplace').onclick = () => {
+  if (!selectedIndexes().length) return toast('差し替えるページを左で選んでください');
+  $('#fReplace').click();
+};
+$('#fReplace').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  const idx = selectedIndexes();
+  const srcs = await uploadFiles(files); if (!srcs.length) return;
+  const np = srcToPages(srcs);
+  if (!confirm(`選択中の ${idx.length} ページを、新しい ${np.length} ページに差し替えます。よろしいですか？`)) return;
+  pushUndo();
+  const del = new Set(idx.map(i => S.pages[i].id));
+  for (const p of np){ const old = S.pages[idx[np.indexOf(p)]]; if (old?.bookmark) p.bookmark = old.bookmark; }
+  S.pages = S.pages.filter(p => !del.has(p.id));
+  S.pages.splice(idx[0], 0, ...np);
+  S.selPages = new Set(np.map(p => p.id)); renderAll(); scrollToPage(np[0].id);
+  toast(`${idx.length} ページを ${np.length} ページに差し替えました`);
+};
+$('#pMark').onclick = () => {
+  const idx = selectedIndexes(); if (!idx.length) return toast('しおりを付けるページを左で選んでください');
+  const p = S.pages[idx[0]];
+  const t = prompt(`${idx[0]+1} ページ目のしおり（目次）の名前\n空にすると外します`, p.bookmark || '');
+  if (t === null) return;
+  pushUndo(); p.bookmark = t.trim(); renderThumbs();
+  toast(p.bookmark ? 'しおりを付けました（保存したPDFの目次に出ます）' : 'しおりを外しました');
+};
+
+// ===== 印刷 =====
+async function printPDF(){
+  if (!S.pages.length) return;
+  const w = window.open('', '_blank');   // ポップアップ止めを避けるため先に開く
+  if (w) w.document.write('<p style="font-family:sans-serif">印刷用のPDFを作成中…</p>');
+  busy(true);
+  try {
+    const blob = await exportPDF(S.pages, {});
+    const url = URL.createObjectURL(blob);
+    if (w) w.location.href = url; else window.open(url, '_blank');
+    toast('開いたPDFの画面から印刷してください（Ctrl+P）', 4000);
+  } catch(err){ w && w.close(); alert('印刷用PDFを作れませんでした: ' + err.message); }
+  finally { busy(false); }
+}
+$('#bPrint').onclick = printPDF;
+
+// ===== 変換 =====
+$('#bConvert').onclick = e => {
+  showMenu(e.currentTarget, [
+    ['PDF → 画像（PNG / JPEG）…', () => { if (!S.pages.length) return toast('先にPDFを開いてください'); document.querySelector('input[name=cvRange][value=sel]').disabled = !S.selPages.size; $('#dConv').showModal(); }],
+    ['PDF → テキスト（.txt）', convertText],
+    '-',
+    ['画像・SVG・XPS・テキスト → PDF', () => { toast('ファイルを選ぶとPDFとして開きます。そのまま「保存」でPDFになります', 4500); $('#fOpen').click(); }],
+    ['複数の画像を1つのPDFにまとめる', () => { toast('画像をまとめて選ぶと1つのPDFになります（順番は左で並べ替え）', 4500); $('#fOpen').click(); }],
+    ['用紙サイズをそろえる（A3→A4 など）', () => { if (!S.pages.length) return toast('先にPDFを開いてください'); $('#bSave').click(); $('#sPaper').value = 'A4'; $('#sPaper').focus(); }],
+    '-',
+    ['Word・Excel・DocuWorks から PDF にするには', () => alert('Word・Excel・DocuWorks のファイルは、このブラウザでは直接読めません。\n\n・Word / Excel：「ファイル」→「名前を付けて保存」で種類を「PDF」にする\n・DocuWorks：DocuWorks Desk で文書を選び「ファイル」→「PDF文書に変換」\n\nPDFにしたあと、ここで開けば編集・結合できます。')],
+  ]);
+};
+async function exportedSource(pages){
+  const blob = await exportPDF(pages, {});
+  const data = new Uint8Array(await blob.arrayBuffer());
+  return call('open', {data, name:'tmp.pdf'}, [data.buffer]);
+}
+async function convertText(){
+  if (!S.pages.length) return toast('先にPDFを開いてください');
+  const base = (S.fileName || 'document').replace(/\.pdf$/i, '');
+  const saved = await saveBlob(base + '.txt', async () => {
+    busy(true);
+    try { const src = await exportedSource(S.pages); const t = await call('text', {src:src.id}); call('close', {src:src.id}); return new Blob(['﻿' + t.replace(/\n/g, '\r\n')], {type:'text/plain'}); }
+    finally { busy(false); }
+  }, {description:'テキスト', accept:{'text/plain':['.txt']}});
+  if (saved) toast('保存しました: ' + saved + '（スキャンPDFの文字は取り出せません）', 4000);
+}
+$('#cvOk').onclick = async e => {
+  e.preventDefault();
+  const fmt = $('#cvFmt').value, dpi = +$('#cvDpi').value;
+  const pages = document.querySelector('input[name=cvRange]:checked').value === 'sel' ? S.pages.filter(p => S.selPages.has(p.id)) : S.pages;
+  $('#dConv').close();
+  const base = (S.fileName || 'document').replace(/\.pdf$/i, ''), ext = fmt === 'jpg' ? '.jpg' : '.png', mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const type = {description:'画像', accept:{[mime]:[ext]}};
+  let dir = null;
+  if (pages.length > 1 && window.showDirectoryPicker){ try { dir = await showDirectoryPicker({mode:'readwrite'}); } catch(err){ if (err.name === 'AbortError') return; } }
+  if (pages.length === 1){
+    const saved = await saveBlob(base + ext, async () => { busy(true); try { const src = await exportedSource(pages); const b = await call('raster', {src:src.id, index:0, dpi, fmt}); call('close', {src:src.id}); return new Blob([b], {type:mime}); } finally { busy(false); } }, type);
+    if (saved) toast('保存しました: ' + saved);
+    return;
+  }
+  busy(true);
+  try {
+    const src = await exportedSource(pages);
+    for (let i = 0; i < pages.length; i++){
+      $('#busy').textContent = `画像に変換中… ${i+1} / ${pages.length}`;
+      const blob = new Blob([await call('raster', {src:src.id, index:i, dpi, fmt})], {type:mime});
+      const name = `${base}_${String(i+1).padStart(3,'0')}${ext}`;
+      if (dir){ const fh = await dir.getFileHandle(name, {create:true}); const w = await fh.createWritable(); await w.write(blob); await w.close(); }
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); await new Promise(r => setTimeout(r, 300)); }
+    }
+    call('close', {src:src.id});
+    toast(`${pages.length} 枚の画像を保存しました`);
+  } catch(err){ alert('変換できませんでした: ' + err.message); }
+  finally { busy(false); $('#busy').textContent = '処理中…'; }
+};
 
 // ===== 起動 =====
 setTool('select'); updateButtons();
