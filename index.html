@@ -1,0 +1,1122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>PDF編集ソフト</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#e9ecef; --panel:#ffffff; --line:#d5d9de; --text:#1f2328; --muted:#6a737d;
+  --accent:#d6402b; --accent-weak:#fde9e6; --sel:#1a73e8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:"Yu Gothic UI","Meiryo UI",sans-serif;font-size:13px;color:var(--text);background:var(--bg)}
+button,select,input{font:inherit}
+#app{display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:200px 1fr 240px;height:100vh}
+#toolbar{grid-column:1/4;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.grp{display:flex;align-items:center;gap:2px;padding-right:6px;margin-right:4px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:none}
+.tb{border:1px solid transparent;background:none;border-radius:6px;padding:5px 8px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--text)}
+.tb:hover{background:#f1f3f5;border-color:var(--line)}
+.tb.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent)}
+.tb.primary{background:var(--accent);color:#fff}
+.tb.primary:hover{background:#b9351f}
+.tb:disabled{opacity:.4;cursor:default}
+.tb svg{width:16px;height:16px;flex:none}
+#zoomLabel{min-width:48px;text-align:center}
+#side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#sideHead{display:flex;flex-wrap:wrap;gap:2px;padding:6px;border-bottom:1px solid var(--line)}
+#sideHead .tb{padding:4px 6px}
+#thumbs{flex:1;overflow:auto;padding:8px 10px 40px}
+.thumb{margin:0 auto 12px;width:140px;text-align:center;cursor:pointer;position:relative;user-select:none}
+.thumb .tw{background:#fff;border:2px solid transparent;box-shadow:0 1px 3px rgba(0,0,0,.25);display:inline-block;position:relative;line-height:0}
+.thumb img{max-width:130px;max-height:170px;display:block}
+.thumb.sel .tw{border-color:var(--sel)}
+.thumb.cur .num{font-weight:bold;color:var(--sel)}
+.thumb .num{font-size:12px;color:var(--muted);margin-top:3px}
+.thumb .badge{position:absolute;right:2px;top:2px;background:var(--accent);color:#fff;font-size:10px;line-height:1;padding:2px 4px;border-radius:3px}
+.thumb.drop-before::before,.thumb.drop-after::after{content:"";position:absolute;left:0;right:0;height:3px;background:var(--sel);border-radius:2px}
+.thumb.drop-before::before{top:-8px}.thumb.drop-after::after{bottom:-8px}
+#viewer{overflow:auto;position:relative;min-height:0}
+#pages{display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px}
+.page{position:relative;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);flex:none}
+.page>img{position:absolute;inset:0;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
+.layer{position:absolute;inset:0;overflow:hidden}
+.pno{position:absolute;left:-2px;top:-18px;font-size:11px;color:var(--muted)}
+.tool-text .layer,.tool-edittext .layer{cursor:text}
+.tool-whiteout .layer,.tool-highlight .layer,.tool-rect .layer,.tool-ellipse .layer,.tool-line .layer,.tool-arrow .layer,.tool-ink .layer{cursor:crosshair}
+.ann{position:absolute;cursor:move}
+.ann.sel{outline:1.5px solid var(--sel);outline-offset:2px}
+.ann .txt{white-space:pre;outline:none;min-width:4px;min-height:1em}
+.ann .txt[contenteditable=true]{cursor:text;background:rgba(26,115,232,.06);outline:1px dashed var(--sel)}
+.ann.whiteout{background:#fff;outline:1px dotted #bbb}
+.ann.whiteout.sel{outline:1.5px solid var(--sel)}
+.ann.stamp{display:flex;align-items:center;justify-content:center;border-style:solid}
+.ann img{width:100%;height:100%;display:block;pointer-events:none}
+.ann svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.mask{position:absolute;background:#fff;pointer-events:none}
+.h{position:absolute;width:10px;height:10px;background:#fff;border:1.5px solid var(--sel);border-radius:2px;z-index:5}
+.h.se{right:-7px;bottom:-7px;cursor:nwse-resize}
+.h.pt{margin:-5px 0 0 -5px;cursor:move;border-radius:50%}
+.span{position:absolute;outline:1px dashed rgba(26,115,232,.55);background:rgba(26,115,232,.06);cursor:text}
+.span:hover{background:rgba(26,115,232,.18)}
+.ghost{position:absolute;border:1px dashed var(--sel);pointer-events:none}
+#props{background:var(--panel);border-left:1px solid var(--line);padding:10px 12px;overflow:auto}
+#props h3{font-size:13px;margin:4px 0 10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.row label{color:var(--muted);flex:none}
+.row input[type=number]{width:70px}
+.row select{max-width:130px}
+.row input[type=color]{width:40px;height:26px;padding:0;border:1px solid var(--line);border-radius:4px;background:none}
+.hint{color:var(--muted);font-size:12px;line-height:1.6;margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.hint kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;font-size:11px;background:#f8f9fa}
+#status{grid-column:1/4;display:flex;gap:16px;padding:3px 10px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+#empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);pointer-events:none}
+#empty .big{font-size:18px;color:var(--text)}
+#empty button{pointer-events:auto}
+#viewer.dragover{outline:3px dashed var(--sel);outline-offset:-8px}
+.menu{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:4px;z-index:50;min-width:180px}
+.menu button{display:block;width:100%;text-align:left;border:none;background:none;padding:6px 10px;border-radius:4px;cursor:pointer}
+.menu button:hover{background:#f1f3f5}
+.menu hr{border:none;border-top:1px solid var(--line);margin:4px 0}
+dialog{border:none;border-radius:10px;padding:0;box-shadow:0 10px 40px rgba(0,0,0,.3);width:min(520px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog form{padding:16px 20px}
+dialog h2{font-size:16px;margin:0 0 12px}
+dialog fieldset{border:1px solid var(--line);border-radius:6px;margin:0 0 10px;padding:8px 12px}
+dialog legend{padding:0 4px}
+dialog .r{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+dialog .r>label:first-child{min-width:80px;color:var(--muted)}
+dialog input[type=text],dialog input[type=password]{flex:1;min-width:120px;padding:4px 6px}
+dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+dialog .btns button{padding:6px 16px;border-radius:6px;border:1px solid var(--line);background:#fff;cursor:pointer}
+dialog .btns .ok{background:var(--accent);border-color:var(--accent);color:#fff}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:100}
+#toast.show{opacity:.92}
+#busy{position:fixed;inset:0;background:rgba(255,255,255,.5);display:none;align-items:center;justify-content:center;z-index:90;font-size:15px}
+#busy.show{display:flex}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <div class="grp">
+      <button class="tb" id="bOpen" title="PDFを開く (Ctrl+O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>開く</button>
+      <button class="tb" id="bInsert" title="PDF・画像・空白ページを追加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M12 11v6M9 14h6"/></svg>ページ追加 ▾</button>
+      <button class="tb primary" id="bSave" title="名前を付けて保存 (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>保存</button>
+      <button class="tb" id="bSplit" title="ページを分割・抽出して保存">分割・抽出</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bUndo" title="元に戻す (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="tb" id="bRedo" title="やり直し (Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+    </div>
+    <div class="grp" id="tools">
+      <button class="tb on" data-tool="select" title="選択・移動 (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 3 7 17 2-7 7-2z"/></svg>選択</button>
+      <button class="tb" data-tool="text" title="文字を追加 (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14M9 19h6"/></svg>文字追加</button>
+      <button class="tb" data-tool="edittext" title="既存の文字を書き換え (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></svg>文字修正</button>
+      <button class="tb" data-tool="whiteout" title="白塗り（修正テープ） (W)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="1"/><path d="M7 7v10" stroke-dasharray="2 2"/></svg>白塗り</button>
+      <button class="tb" data-tool="highlight" title="マーカー (H)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 6 6M4 20l3-1 11-11-3-3L4 16z"/></svg>マーカー</button>
+      <button class="tb" data-tool="rect" title="四角 (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14"/></svg></button>
+      <button class="tb" data-tool="ellipse" title="楕円 (O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
+      <button class="tb" data-tool="line" title="線 (L)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5"/></svg></button>
+      <button class="tb" data-tool="arrow" title="矢印 (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5M10 5h9v9"/></svg></button>
+      <button class="tb" data-tool="ink" title="手書き (P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-9 7-7s-2 6 1 7 5-6 7-8 3 0 3 0"/></svg>手書き</button>
+      <button class="tb" id="bImage" title="画像・印鑑画像を配置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>画像</button>
+      <button class="tb" id="bStamp" title="スタンプ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="13" width="16" height="5" rx="1"/><path d="M9 13V9a3 3 0 1 1 6 0v4M6 21h12"/></svg>スタンプ ▾</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bZoomOut" title="縮小 (Ctrl+-)">－</button>
+      <span id="zoomLabel">100%</span>
+      <button class="tb" id="bZoomIn" title="拡大 (Ctrl++)">＋</button>
+      <button class="tb" id="bFit" title="幅に合わせる">幅</button>
+      <button class="tb" id="bFitPage" title="ページ全体">全体</button>
+    </div>
+  </div>
+
+  <div id="side">
+    <div id="sideHead">
+      <button class="tb" id="pRotL" title="左に回転">↺</button>
+      <button class="tb" id="pRotR" title="右に回転">↻</button>
+      <button class="tb" id="pDup" title="複製">複製</button>
+      <button class="tb" id="pBlank" title="選択ページの後に空白ページ">空白</button>
+      <button class="tb" id="pDel" title="削除 (Delete)">削除</button>
+    </div>
+    <div id="thumbs"></div>
+  </div>
+
+  <div id="viewer">
+    <div id="pages"></div>
+    <div id="empty">
+      <div class="big">PDFをここにドラッグ＆ドロップ</div>
+      <div>または</div>
+      <button class="tb primary" id="bOpen2">PDFを開く</button>
+      <div style="margin-top:8px">複数のPDFや画像（JPG/PNG）をまとめて入れると結合できます</div>
+    </div>
+  </div>
+
+  <div id="props"></div>
+
+  <div id="status"><span id="stFile">ファイルなし</span><span id="stPage"></span><span id="stMsg"></span></div>
+</div>
+
+<input type="file" id="fOpen" accept=".pdf,application/pdf,image/*" multiple hidden>
+<input type="file" id="fInsert" accept=".pdf,application/pdf,image/*" multiple hidden>
+<input type="file" id="fImage" accept="image/*" hidden>
+
+<dialog id="dSave"><form method="dialog">
+  <h2>名前を付けて保存</h2>
+  <div class="r"><label>ファイル名</label><input type="text" id="sName"></div>
+  <div class="r"><label>対象</label>
+    <label><input type="radio" name="sRange" value="all" checked> すべてのページ</label>
+    <label><input type="radio" name="sRange" value="sel"> 選択中のページのみ</label></div>
+  <fieldset><legend><label><input type="checkbox" id="pnOn"> ページ番号を付ける</label></legend>
+    <div class="r"><label>位置</label><select id="pnPos">
+      <option value="bottom-center">下・中央</option><option value="bottom-right">下・右</option><option value="bottom-left">下・左</option>
+      <option value="top-center">上・中央</option><option value="top-right">上・右</option><option value="top-left">上・左</option></select>
+      <label>書式</label><select id="pnFmt"><option value="{n}">1</option><option value="- {n} -">- 1 -</option><option value="{n} / {total}">1 / 10</option><option value="P.{n}">P.1</option></select></div>
+    <div class="r"><label>開始番号</label><input type="number" id="pnStart" value="1" style="width:60px">
+      <label>付け始めるページ</label><input type="number" id="pnFrom" value="1" min="1" style="width:60px">
+      <label>文字サイズ</label><input type="number" id="pnSize" value="10" style="width:56px"></div>
+  </fieldset>
+  <fieldset><legend><label><input type="checkbox" id="wmOn"> 透かし文字を入れる</label></legend>
+    <div class="r"><label>文字</label><input type="text" id="wmText" value="社外秘"></div>
+    <div class="r"><label>サイズ</label><input type="number" id="wmSize" value="80" style="width:60px">
+      <label>色</label><input type="color" id="wmColor" value="#999999">
+      <label>濃さ</label><input type="range" id="wmOpacity" min="5" max="100" value="25"></div>
+  </fieldset>
+  <fieldset><legend>オプション</legend>
+    <div class="r"><label><input type="checkbox" id="sCompress"> ファイルサイズを小さくする（圧縮）</label></div>
+    <div class="r"><label><input type="checkbox" id="pwOn"> パスワードを設定</label><input type="password" id="pwVal" placeholder="開くときのパスワード"></div>
+  </fieldset>
+  <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="sOk">保存</button></div>
+</form></dialog>
+
+<dialog id="dSplit"><form method="dialog">
+  <h2>分割・抽出</h2>
+  <div class="r"><label><input type="radio" name="spMode" value="sel" checked> 選択中のページを1つのPDFに抽出</label></div>
+  <div class="r"><label><input type="radio" name="spMode" value="each"> 1ページずつ別のPDFに分割</label></div>
+  <div class="r"><label><input type="radio" name="spMode" value="n"> </label><input type="number" id="spN" value="2" min="1" style="width:60px"> ページごとに分割</div>
+  <div class="r"><label><input type="radio" name="spMode" value="ranges"> 範囲を指定</label><input type="text" id="spRanges" placeholder="例: 1-3, 4-6, 7"></div>
+  <div class="r"><label>ファイル名</label><input type="text" id="spBase"></div>
+  <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="spOk">保存</button></div>
+</form></dialog>
+
+<div id="toast"></div>
+<div id="busy">処理中…</div>
+
+<script>
+'use strict';
+// ===== 状態 =====
+const FONTS = {
+  'gothic':   {label:'游ゴシック',   css:'"Yu Gothic Medium","Yu Gothic","YuGothic",sans-serif', weight:500},
+  'gothic-b': {label:'游ゴシック 太字', css:'"Yu Gothic","YuGothic",sans-serif', weight:700},
+  'mincho':   {label:'游明朝',       css:'"Yu Mincho","YuMincho",serif', weight:400},
+  'meiryo':   {label:'メイリオ',      css:'Meiryo,sans-serif', weight:400},
+  'msgothic': {label:'MS ゴシック',   css:'"MS Gothic",monospace', weight:400},
+  'arial':    {label:'Arial（英数字のみ）', css:'Arial,sans-serif', weight:400},
+  'times':    {label:'Times（英数字のみ）', css:'"Times New Roman",serif', weight:400},
+};
+const LH = 1.25;            // 行間（文字サイズ比）
+const S = {
+  pages: [], zoom: 1, tool: 'select', sel: null, selPages: new Set(), anchor: null,
+  undo: [], redo: [], dirty: false, fileName: '', cur: null, clip: null,
+  styles: {
+    text:     {font:'gothic', size:12, color:'#000000'},
+    stamp:    {font:'gothic-b', size:14, color:'#d00000'},
+    whiteout: {fill:'#ffffff'},
+    highlight:{color:'#ffe600', opacity:0.35},
+    rect:     {color:'#e00000', width:2, fill:''},
+    ellipse:  {color:'#e00000', width:2, fill:''},
+    line:     {color:'#e00000', width:2},
+    arrow:    {color:'#e00000', width:2},
+    ink:      {color:'#0033cc', width:2},
+  },
+};
+const spanCache = new Map();
+let uid = 1; const nid = () => 'a' + Date.now().toString(36) + (uid++);
+const $ = s => document.querySelector(s);
+const pagesEl = $('#pages'), viewer = $('#viewer'), thumbsEl = $('#thumbs');
+
+// ===== ユーティリティ =====
+function toast(msg, ms=2200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), ms); }
+function busy(on){ $('#busy').classList.toggle('show', !!on); }
+const vis = p => (p.rot % 180) ? [p.bh, p.bw] : [p.bw, p.bh];
+const pageById = id => S.pages.find(p => p.id === id);
+function renderURL(p, scale){
+  const q = new URLSearchParams({src:p.src, index:p.index ?? 0, rot:p.rot, scale:scale.toFixed(3)});
+  if (p.src === 'blank'){ q.set('w', p.bw); q.set('h', p.bh); }
+  return '/render?' + q;
+}
+function snapshot(){ return JSON.stringify({pages:S.pages}); }
+function pushUndo(){ S.undo.push(snapshot()); if (S.undo.length > 100) S.undo.shift(); S.redo = []; S.dirty = true; updateButtons(); }
+function restore(json){ const o = JSON.parse(json); S.pages = o.pages; S.sel = null; S.selPages = new Set([...S.selPages].filter(id => pageById(id))); renderAll(); }
+function undo(){ if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); updateButtons(); }
+function redo(){ if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); updateButtons(); }
+function updateButtons(){
+  $('#bUndo').disabled = !S.undo.length; $('#bRedo').disabled = !S.redo.length;
+  const has = S.pages.length > 0;
+  for (const id of ['#bSave','#bSplit','#pRotL','#pRotR','#pDup','#pBlank','#pDel']) $(id).disabled = !has;
+  $('#empty').style.display = has ? 'none' : 'flex';
+  $('#stFile').textContent = S.fileName ? (S.fileName + (S.dirty ? ' *' : '')) : 'ファイルなし';
+  document.title = (S.fileName ? S.fileName + (S.dirty ? ' *' : '') + ' - ' : '') + 'PDF編集ソフト';
+}
+async function api(path, body, ctype='application/octet-stream'){
+  const r = await fetch(path, {method:'POST', body, headers:{'Content-Type':ctype}});
+  if (!r.ok){ let m = r.statusText; try { m = (await r.json()).error; } catch(e){} throw new Error(m); }
+  return r;
+}
+
+// 文字の基準線位置（フォントごとにブラウザで実測し、PDF側と一致させる）
+const baseCache = {};
+function baselineRatio(font){
+  if (baseCache[font]) return baseCache[font];
+  const f = FONTS[font] || FONTS.gothic;
+  const d = document.createElement('div');
+  d.style.cssText = `position:absolute;left:-9999px;top:0;font-family:${f.css};font-weight:${f.weight};font-size:100px;line-height:${LH};white-space:pre`;
+  d.innerHTML = 'あA<span style="display:inline-block;width:1px;height:0;vertical-align:baseline"></span>';
+  document.body.appendChild(d);
+  const r = d.lastChild.getBoundingClientRect().top - d.getBoundingClientRect().top;
+  d.remove();
+  return baseCache[font] = r / 100;
+}
+function measureText(text, font, size){
+  const f = FONTS[font] || FONTS.gothic;
+  const c = measureText.c || (measureText.c = document.createElement('canvas').getContext('2d'));
+  c.font = `${f.weight} ${size}px ${f.css}`;
+  const lines = String(text).split('\n');
+  return {w: Math.max(...lines.map(l => c.measureText(l).width)), h: lines.length * size * LH};
+}
+
+// ===== ファイル読み込み =====
+async function uploadFiles(files){
+  const res = [];
+  busy(true);
+  try {
+    for (const f of files){
+      const r = await api('/upload?name=' + encodeURIComponent(f.name), f);
+      res.push(await r.json());
+    }
+  } catch(e){ alert('読み込めませんでした: ' + e.message); }
+  finally { busy(false); }
+  return res;
+}
+function srcToPages(srcs){
+  const out = [];
+  for (const s of srcs) for (const pg of s.pages)
+    out.push({id:nid(), src:pg.src, index:pg.index, bw:pg.w, bh:pg.h, rot:0, anns:[], name:s.name});
+  return out;
+}
+async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
+  files = [...files].filter(f => /pdf$|^image\//i.test(f.type) || /\.(pdf|png|jpe?g|gif|bmp|tiff?)$/i.test(f.name));
+  if (!files.length) return;
+  if (mode === 'open' && S.dirty && S.pages.length && !confirm('編集中の内容は破棄されます。開きますか？')) return;
+  const srcs = await uploadFiles(files);
+  if (!srcs.length) return;
+  const np = srcToPages(srcs);
+  if (mode === 'open'){
+    S.pages = np; S.undo = []; S.redo = []; S.dirty = false; S.sel = null;
+    S.fileName = srcs.length === 1 ? srcs[0].name.replace(/\.[^.]+$/, '') + '.pdf' : '結合.pdf';
+    S.selPages = new Set(); fitWidth(false);
+  } else {
+    pushUndo();
+    const at = (typeof mode === 'object' && mode.at != null) ? mode.at : insertIndexAfterSelection();
+    S.pages.splice(at, 0, ...np);
+    S.selPages = new Set(np.map(p => p.id));
+    if (!S.fileName) S.fileName = srcs[0].name.replace(/\.[^.]+$/, '') + '.pdf';
+    toast(`${np.length} ページを追加しました`);
+  }
+  renderAll();
+  if (mode !== 'open') scrollToPage(np[0].id);
+}
+function insertIndexAfterSelection(){
+  if (!S.selPages.size) return S.pages.length;
+  let last = -1; S.pages.forEach((p,i) => { if (S.selPages.has(p.id)) last = i; });
+  return last + 1;
+}
+
+// ===== 描画 =====
+function renderAll(){ renderThumbs(); renderPages(); renderProps(); updateButtons(); }
+
+let thumbObs;
+function renderThumbs(){
+  thumbsEl.innerHTML = '';
+  thumbObs?.disconnect();
+  thumbObs = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting){ const img = e.target; if (!img.src) img.src = img.dataset.src; thumbObs.unobserve(img); }
+  }), {root: thumbsEl, rootMargin: '400px'});
+  S.pages.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'thumb' + (S.selPages.has(p.id) ? ' sel' : '') + (S.cur === p.id ? ' cur' : '');
+    d.draggable = true; d.dataset.pid = p.id;
+    const [w,h] = vis(p); const sc = Math.min(130/w, 170/h);
+    d.innerHTML = `<div class="tw" style="width:${Math.round(w*sc)+4}px;height:${Math.round(h*sc)+4}px"><img data-src="${renderURL(p, sc*1.5)}" style="width:${Math.round(w*sc)}px;height:${Math.round(h*sc)}px">${p.anns.length ? '<span class="badge">編集</span>' : ''}</div><div class="num">${i+1}</div>`;
+    thumbsEl.appendChild(d);
+    thumbObs.observe(d.querySelector('img'));
+  });
+}
+
+let pageObs;
+function renderPages(){
+  const keepTop = viewer.scrollTop;
+  pagesEl.innerHTML = '';
+  pageObs?.disconnect();
+  pageObs = new IntersectionObserver(es => es.forEach(e => {
+    const el = e.target, p = pageById(el.dataset.pid); if (!p) return;
+    if (e.isIntersecting){
+      const img = el.querySelector('img'); const url = renderURL(p, Math.min(4, S.zoom * (window.devicePixelRatio||1)));
+      if (img.getAttribute('src') !== url) img.src = url;
+      if (S.tool === 'edittext') loadSpans(p, el);
+    }
+  }), {root: viewer, rootMargin: '800px'});
+  S.pages.forEach((p, i) => {
+    const [w,h] = vis(p);
+    const el = document.createElement('div');
+    el.className = 'page'; el.dataset.pid = p.id;
+    el.style.width = (w*S.zoom) + 'px'; el.style.height = (h*S.zoom) + 'px';
+    el.innerHTML = `<span class="pno">${i+1} / ${S.pages.length}</span><img alt=""><div class="layer"></div>`;
+    pagesEl.appendChild(el);
+    renderLayer(p, el);
+    pageObs.observe(el);
+  });
+  viewer.scrollTop = keepTop;
+  $('#zoomLabel').textContent = Math.round(S.zoom*100) + '%';
+}
+function pageEl(pid){ return pagesEl.querySelector(`.page[data-pid="${pid}"]`); }
+
+function annBox(a){
+  if (a.type === 'line' || a.type === 'arrow'){
+    const pad = (a.width||2) * 2 + 4;
+    const x0 = Math.min(a.x1,a.x2)-pad, y0 = Math.min(a.y1,a.y2)-pad;
+    return {x:x0, y:y0, w:Math.abs(a.x2-a.x1)+pad*2, h:Math.abs(a.y2-a.y1)+pad*2};
+  }
+  if (a.type === 'ink'){
+    const xs = a.points.map(p=>p[0]), ys = a.points.map(p=>p[1]); const pad = (a.width||2) + 3;
+    const x0 = Math.min(...xs)-pad, y0 = Math.min(...ys)-pad;
+    return {x:x0, y:y0, w:Math.max(...xs)-x0+pad, h:Math.max(...ys)-y0+pad};
+  }
+  if (a.type === 'text' || a.type === 'edittext'){
+    const m = measureText(a.text || ' ', a.font, a.size);
+    return {x:a.x, y:a.y, w:m.w, h:m.h};
+  }
+  return {x:a.x, y:a.y, w:a.w, h:a.h};
+}
+function moveAnn(a, dx, dy){
+  if (a.type === 'line' || a.type === 'arrow'){ a.x1+=dx; a.x2+=dx; a.y1+=dy; a.y2+=dy; }
+  else if (a.type === 'ink'){ a.points = a.points.map(([x,y]) => [x+dx, y+dy]); }
+  else { a.x += dx; a.y += dy; }
+}
+function arrowHead(a){
+  const vx=a.x2-a.x1, vy=a.y2-a.y1, L=Math.hypot(vx,vy)||1, ux=vx/L, uy=vy/L, hl=Math.max(8,(a.width||2)*4);
+  return [1,-1].map(s => { const t=25*Math.PI/180*s; const rx=ux*Math.cos(t)-uy*Math.sin(t), ry=ux*Math.sin(t)+uy*Math.cos(t); return [a.x2-rx*hl, a.y2-ry*hl]; });
+}
+
+function renderLayer(p, el){
+  el = el || pageEl(p.id); if (!el) return;
+  const layer = el.querySelector('.layer'); layer.innerHTML = '';
+  const z = S.zoom;
+  // 白塗り・マーカーは下、その他は上
+  const order = a => (a.type === 'whiteout' ? 0 : a.type === 'highlight' ? 1 : 2);
+  const list = [...p.anns].sort((a,b) => order(a) - order(b));
+  // 文字修正の元文字を隠すマスク
+  for (const a of p.anns) if (a.type === 'edittext'){
+    const m = document.createElement('div'); m.className = 'mask';
+    Object.assign(m.style, {left:a.ox0*z+'px', top:a.oy0*z+'px', width:(a.ox1-a.ox0)*z+'px', height:(a.oy1-a.oy0)*z+'px'});
+    layer.appendChild(m);
+  }
+  if (S.tool === 'edittext') drawSpans(p, layer);
+  for (const a of list){
+    const b = annBox(a);
+    const d = document.createElement('div');
+    d.className = 'ann ' + a.type + (S.sel && S.sel.aid === a.id ? ' sel' : '');
+    d.dataset.aid = a.id; d.dataset.pid = p.id;
+    Object.assign(d.style, {left:b.x*z+'px', top:b.y*z+'px', width:b.w*z+'px', height:b.h*z+'px'});
+    const font = FONTS[a.font] || FONTS.gothic;
+    switch (a.type){
+      case 'text': case 'edittext': {
+        const t = document.createElement('div'); t.className = 'txt'; t.textContent = a.text;
+        Object.assign(t.style, {fontFamily:font.css, fontWeight:font.weight, fontSize:a.size*z+'px', lineHeight:LH, color:a.color});
+        d.style.width = d.style.height = '';
+        d.appendChild(t); break;
+      }
+      case 'stamp': {
+        const t = document.createElement('div'); t.className = 'txt'; t.textContent = a.text;
+        Object.assign(t.style, {fontFamily:font.css, fontWeight:font.weight, fontSize:a.size*z+'px', lineHeight:LH, color:a.color});
+        Object.assign(d.style, {borderColor:a.color, borderWidth:Math.max(1,1.5*z)+'px', borderRadius:3*z+'px'});
+        d.appendChild(t); break;
+      }
+      case 'whiteout': d.style.background = a.fill || '#fff'; break;
+      case 'highlight': d.style.background = a.color; d.style.opacity = a.opacity ?? .35; break;
+      case 'rect': case 'ellipse':
+        Object.assign(d.style, {border:`${a.width*z}px solid ${a.color}`, background:a.fill || 'transparent', borderRadius: a.type==='ellipse' ? '50%' : '0'});
+        break;
+      case 'image': { const im = new Image(); im.src = '/image?id=' + a.img; d.appendChild(im); break; }
+      case 'line': case 'arrow': case 'ink': {
+        let inner;
+        if (a.type === 'ink') inner = `<polyline points="${a.points.map(q=>q.join(',')).join(' ')}" fill="none" stroke="${a.color}" stroke-width="${a.width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        else {
+          inner = `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${a.color}" stroke-width="${a.width}" stroke-linecap="round"/>`;
+          if (a.type === 'arrow') inner += arrowHead(a).map(([x,y]) => `<line x1="${a.x2}" y1="${a.y2}" x2="${x}" y2="${y}" stroke="${a.color}" stroke-width="${a.width}" stroke-linecap="round"/>`).join('');
+        }
+        d.innerHTML = `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" preserveAspectRatio="none">${inner}</svg>`;
+        break;
+      }
+    }
+    if (S.sel && S.sel.aid === a.id){
+      if (a.type === 'line' || a.type === 'arrow'){
+        for (const k of ['1','2']){ const h = document.createElement('div'); h.className = 'h pt'; h.dataset.h = 'p'+k;
+          h.style.left = (a['x'+k]-b.x)*z+'px'; h.style.top = (a['y'+k]-b.y)*z+'px'; d.appendChild(h); }
+      } else if (!['text','edittext','ink'].includes(a.type)){
+        const h = document.createElement('div'); h.className = 'h se'; h.dataset.h = 'se'; d.appendChild(h);
+      }
+    }
+    layer.appendChild(d);
+  }
+}
+
+// ===== 既存テキスト（文字修正ツール） =====
+async function loadSpans(p, el){
+  const key = `${p.src}|${p.index}|${p.rot}`;
+  if (p.src === 'blank') return;
+  if (!spanCache.has(key)){
+    spanCache.set(key, null);
+    const r = await fetch(`/spans?src=${p.src}&index=${p.index}&rot=${p.rot}`);
+    spanCache.set(key, await r.json());
+    if (S.tool === 'edittext') renderLayer(p);
+  }
+}
+function drawSpans(p, layer){
+  const spans = spanCache.get(`${p.src}|${p.index}|${p.rot}`);
+  if (!spans) return;
+  const z = S.zoom;
+  spans.forEach((s, i) => {
+    if (p.anns.some(a => a.type === 'edittext' && Math.abs(a.ox0-s.x0) < .5 && Math.abs(a.oy0-s.y0) < .5)) return;
+    const d = document.createElement('div'); d.className = 'span'; d.dataset.si = i; d.title = s.text;
+    Object.assign(d.style, {left:s.x0*z+'px', top:s.y0*z+'px', width:(s.x1-s.x0)*z+'px', height:(s.y1-s.y0)*z+'px'});
+    layer.appendChild(d);
+  });
+}
+function guessFont(name, bold, text){
+  name = (name || '').toLowerCase();
+  const ascii = /^[ -~]*$/.test(text || '');
+  if (ascii && /helvetica|arial/.test(name)) return 'arial';
+  if (ascii && /times/.test(name)) return 'times';
+  if (/mincho|明朝|serif|ryumin|times/.test(name)) return 'mincho';
+  if (/meiryo/.test(name)) return 'meiryo';
+  if (/msgothic|ms-gothic|ｍｓ/.test(name)) return 'msgothic';
+  return bold || /bold|-b$|w[6-9]/.test(name) ? 'gothic-b' : 'gothic';
+}
+function startSpanEdit(p, s){
+  pushUndo();
+  const font = guessFont(s.font, s.bold, s.text);
+  const a = {id:nid(), type:'edittext', text:s.text, font, size:s.size, color:s.color,
+             ox0:s.x0-0.5, oy0:s.y0-0.5, ox1:s.x1+0.5, oy1:s.y1+0.5,
+             x:s.x0, y:(s.base != null ? s.base - baselineRatio(font)*s.size : s.y0)};
+  p.anns.push(a); S.sel = {pid:p.id, aid:a.id};
+  renderLayer(p); renderProps(); renderThumbBadge(p);
+  editAfterRelease(p, a);
+}
+// マウスを離してからフォーカスを移す（押下中に移すとブラウザ既定動作で外れるため）
+function editAfterRelease(p, a){
+  let done = false;
+  const go = () => { if (done) return; done = true; removeEventListener('pointerup', go); setTimeout(() => beginEdit(p, a), 30); };
+  addEventListener('pointerup', go); setTimeout(go, 600);
+}
+pagesEl.addEventListener('mousedown', e => { if (!e.target.isContentEditable) e.preventDefault(); });
+
+// ===== 文字の入力 =====
+function beginEdit(p, a){
+  const el = pageEl(p.id)?.querySelector(`.ann[data-aid="${a.id}"] .txt`); if (!el) return;
+  el.contentEditable = 'true'; el.focus();
+  const rg = document.createRange(); rg.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+  // 入力のたびに反映（確定操作を忘れても保存に含まれるように）
+  const sync = () => {
+    a.text = el.innerText.replace(/\n$/, ''); S.dirty = true;
+    if (a.type === 'stamp'){ fitStamp(a); Object.assign(el.parentElement.style, {width:a.w*S.zoom+'px', height:a.h*S.zoom+'px'}); }
+  };
+  el.oninput = sync;
+  el.onkeydown = e => { if (e.key === 'Escape'){ el.blur(); } e.stopPropagation(); };
+  el.onblur = () => {
+    el.contentEditable = 'false'; sync();
+    if (!a.text.trim() && a.type !== 'edittext'){ p.anns = p.anns.filter(x => x !== a); if (S.sel?.aid === a.id) S.sel = null; }
+    renderLayer(p); renderProps(); renderThumbBadge(p); updateButtons();
+  };
+}
+
+// ===== マウス操作 =====
+function ptFromEvent(e, el){ const r = el.getBoundingClientRect(); return [(e.clientX - r.left)/S.zoom, (e.clientY - r.top)/S.zoom]; }
+pagesEl.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const pel = e.target.closest('.page'); if (!pel) return;
+  const p = pageById(pel.dataset.pid);
+  setCurrent(p.id);
+  if (e.target.isContentEditable) return;
+  if (document.activeElement?.isContentEditable) document.activeElement.blur();  // 入力中の文字を確定
+  const annEl = e.target.closest('.ann');
+  const [x0, y0] = ptFromEvent(e, pel);
+
+  // 既存の注釈：選択・移動・変形
+  if (annEl && !['ink','highlight'].includes(S.tool)){
+    const a = p.anns.find(a => a.id === annEl.dataset.aid); if (!a) return;
+    e.preventDefault();
+    const handle = e.target.dataset.h;
+    if (S.sel?.aid !== a.id){ S.sel = {pid:p.id, aid:a.id}; renderLayer(p); renderProps(); }
+    let moved = false, lx = x0, ly = y0;
+    const mv = ev => {
+      const [x,y] = ptFromEvent(ev, pel);
+      if (!moved){ if (Math.hypot(x-x0,y-y0)*S.zoom < 3) return; pushUndo(); moved = true; }
+      if (handle === 'se'){ a.w = Math.max(4, x - a.x); a.h = Math.max(4, y - a.y);
+        if (a.type === 'image' && !ev.shiftKey && a.ratio){ a.h = a.w / a.ratio; } }
+      else if (handle === 'p1'){ a.x1 = x; a.y1 = y; }
+      else if (handle === 'p2'){ a.x2 = x; a.y2 = y; }
+      else moveAnn(a, x-lx, y-ly);
+      lx = x; ly = y;
+      renderLayer(p);
+    };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); if (moved){ renderProps(); renderThumbBadge(p); } };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    return;
+  }
+
+  // 文字修正：既存テキストのクリック
+  if (S.tool === 'edittext'){
+    const sp = e.target.closest('.span');
+    if (sp){ e.preventDefault(); startSpanEdit(p, spanCache.get(`${p.src}|${p.index}|${p.rot}`)[+sp.dataset.si]); }
+    else if (S.sel){ S.sel = null; renderLayer(p); renderProps(); }
+    return;
+  }
+  if (S.tool === 'select'){ if (S.sel){ const op = pageById(S.sel.pid); S.sel = null; op && renderLayer(op); renderProps(); } return; }
+
+  if (S.tool === 'text'){
+    e.preventDefault();
+    pushUndo();
+    const st = S.styles.text;
+    const a = {id:nid(), type:'text', text:'', font:st.font, size:st.size, color:st.color, x:x0, y:y0 - st.size*LH/2};
+    p.anns.push(a); S.sel = {pid:p.id, aid:a.id};
+    renderLayer(p); renderProps();
+    editAfterRelease(p, a);
+    return;
+  }
+
+  // ドラッグで作図
+  e.preventDefault();
+  const layer = pel.querySelector('.layer'); const z = S.zoom;
+  const st = S.styles[S.tool]; const tool = S.tool;
+  let a;
+  if (tool === 'ink') a = {type:'ink', points:[[x0,y0]], color:st.color, width:st.width};
+  else if (tool === 'line' || tool === 'arrow') a = {type:tool, x1:x0, y1:y0, x2:x0, y2:y0, color:st.color, width:st.width};
+  else a = {type:tool, x:x0, y:y0, w:0, h:0, ...st};
+  a.id = nid();
+  const ghost = document.createElement('div'); ghost.className = 'ghost'; layer.appendChild(ghost);
+  let started = false;
+  const mv = ev => {
+    let [x,y] = ptFromEvent(ev, pel);
+    if (!started){ pushUndo(); p.anns.push(a); started = true; }
+    if (tool === 'ink') a.points.push([x,y]);
+    else if (tool === 'line' || tool === 'arrow'){
+      if (ev.shiftKey){ const ang = Math.round(Math.atan2(y-y0, x-x0)/(Math.PI/4))*(Math.PI/4); const L = Math.hypot(x-x0,y-y0); x = x0+L*Math.cos(ang); y = y0+L*Math.sin(ang); }
+      a.x2 = x; a.y2 = y;
+    } else {
+      if (ev.shiftKey && tool !== 'highlight'){ const s = Math.max(Math.abs(x-x0), Math.abs(y-y0)); x = x0 + Math.sign(x-x0)*s; y = y0 + Math.sign(y-y0)*s; }
+      a.x = Math.min(x,x0); a.y = Math.min(y,y0); a.w = Math.abs(x-x0); a.h = Math.abs(y-y0);
+    }
+    renderLayer(p); layer.appendChild(ghost);
+  };
+  const up = () => {
+    removeEventListener('pointermove', mv); removeEventListener('pointerup', up); ghost.remove();
+    if (!started) return;
+    const b = annBox(a);
+    const tiny = (tool === 'ink') ? a.points.length < 2 : (tool === 'line' || tool === 'arrow') ? Math.hypot(a.x2-a.x1, a.y2-a.y1) < 2 : (a.w < 2 || a.h < 2);
+    if (tiny){ p.anns = p.anns.filter(x => x !== a); S.undo.pop(); }
+    else if (tool !== 'ink' && tool !== 'highlight' && tool !== 'whiteout') S.sel = {pid:p.id, aid:a.id};
+    renderLayer(p); renderProps(); renderThumbBadge(p); updateButtons();
+  };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+});
+pagesEl.addEventListener('dblclick', e => {
+  const annEl = e.target.closest('.ann'); if (!annEl) return;
+  const p = pageById(annEl.dataset.pid), a = p?.anns.find(a => a.id === annEl.dataset.aid);
+  if (a && ['text','edittext','stamp'].includes(a.type)){ pushUndo(); beginEdit(p, a); }
+});
+function renderThumbBadge(p){
+  const tw = thumbsEl.querySelector(`.thumb[data-pid="${p.id}"] .tw`); if (!tw) return;
+  const b = tw.querySelector('.badge');
+  if (p.anns.length && !b) tw.insertAdjacentHTML('beforeend', '<span class="badge">編集</span>');
+  if (!p.anns.length && b) b.remove();
+}
+
+// ===== ツール切替 =====
+function setTool(t){
+  S.tool = t;
+  document.querySelectorAll('#tools [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+  viewer.className = 'tool-' + t;
+  if (t === 'edittext') toast('書き換えたい文字（青い枠）をクリックしてください');
+  S.pages.forEach(p => { const el = pageEl(p.id); if (el){ renderLayer(p, el); } });
+  if (t === 'edittext'){ // 表示中ページの文字を読み込み
+    pagesEl.querySelectorAll('.page').forEach(el => { const r = el.getBoundingClientRect(), v = viewer.getBoundingClientRect();
+      if (r.bottom > v.top - 800 && r.top < v.bottom + 800) loadSpans(pageById(el.dataset.pid), el); });
+  }
+  renderProps();
+}
+document.querySelectorAll('#tools [data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+
+// ===== プロパティパネル =====
+function renderProps(){
+  const box = $('#props');
+  let a = null, p = null;
+  if (S.sel){ p = pageById(S.sel.pid); a = p?.anns.find(x => x.id === S.sel.aid); if (!a) S.sel = null; }
+  const target = a || S.styles[S.tool] || null;
+  const kind = a ? a.type : S.tool;
+  const names = {select:'選択',text:'文字',edittext:'文字修正',whiteout:'白塗り',highlight:'マーカー',rect:'四角',ellipse:'楕円',line:'線',arrow:'矢印',ink:'手書き',image:'画像',stamp:'スタンプ'};
+  let h = `<h3>${a ? '選択中：' + names[kind] : 'ツール：' + names[kind]}</h3>`;
+  const fields = [];
+  if (target){
+    if ('font' in target) fields.push(['font', 'フォント', `<select data-k="font">${Object.entries(FONTS).map(([k,f]) => `<option value="${k}" ${target.font===k?'selected':''}>${f.label}</option>`).join('')}</select>`]);
+    if ('size' in target) fields.push(['size', '文字サイズ(pt)', `<input type="number" data-k="size" min="4" max="300" step="0.5" value="${target.size}">`]);
+    if ('color' in target) fields.push(['color', '色', `<input type="color" data-k="color" value="${target.color}">`]);
+    if ('width' in target) fields.push(['width', '線の太さ(pt)', `<input type="number" data-k="width" min="0.25" max="30" step="0.25" value="${target.width}">`]);
+    if ('fill' in target && kind !== 'whiteout') fields.push(['fill', '塗りつぶし', `<label><input type="checkbox" data-k="fillOn" ${target.fill?'checked':''}> </label><input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if (kind === 'whiteout') fields.push(['fill', '塗る色', `<input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if ('opacity' in target) fields.push(['opacity', '濃さ', `<input type="range" data-k="opacity" min="0.1" max="1" step="0.05" value="${target.opacity}">`]);
+  }
+  h += fields.map(([k, l, inp]) => `<div class="row"><label>${l}</label><span>${inp}</span></div>`).join('');
+  if (a){
+    if (['image','rect','ellipse','whiteout','highlight','stamp'].includes(a.type))
+      h += `<div class="row"><label>位置 X/Y (pt)</label><span>${a.x.toFixed(1)} / ${a.y.toFixed(1)}</span></div>`;
+    h += `<div class="row" style="margin-top:12px"><button class="tb" id="aDup">複製</button><button class="tb" id="aDel" style="color:#c00">削除</button></div>`;
+    if (a.type === 'edittext') h += `<div class="hint">元の文字は保存時に削除され、この文字に置き換わります。</div>`;
+  }
+  h += `<div class="hint">${hintFor(kind)}<br><br>
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> 元に戻す　<kbd>Del</kbd> 削除<br>
+    <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> 注釈のコピー<br>
+    <kbd>矢印キー</kbd> 選択した注釈を移動（<kbd>Shift</kbd>で大きく）<br>
+    <kbd>Ctrl</kbd>+ホイール 拡大縮小</div>`;
+  box.innerHTML = h;
+  box.querySelectorAll('[data-k]').forEach(inp => {
+    const ev = inp.type === 'range' || inp.type === 'color' ? 'input' : 'change';
+    let pushed = false;
+    inp.addEventListener(ev, () => {
+      const k = inp.dataset.k;
+      let v = inp.type === 'number' || inp.type === 'range' ? parseFloat(inp.value) : inp.value;
+      if (a && !pushed){ pushUndo(); pushed = true; }
+      const t = a || target;
+      if (k === 'fillOn'){ t.fill = inp.checked ? (box.querySelector('[data-k=fill]').value) : ''; }
+      else if (k === 'fill' && kind !== 'whiteout'){ box.querySelector('[data-k=fillOn]').checked = true; t.fill = v; }
+      else t[k] = v;
+      if (a){
+        if (a.type === 'stamp') fitStamp(a);
+        renderLayer(p);
+      }
+    });
+    inp.addEventListener('change', () => { pushed = false; });
+  });
+  $('#aDel') && ($('#aDel').onclick = deleteSelectedAnn);
+  $('#aDup') && ($('#aDup').onclick = () => { copyAnn(); pasteAnn(); });
+}
+function hintFor(k){
+  return {
+    select: '注釈をクリックで選択、ドラッグで移動。文字はダブルクリックで書き換え。',
+    text: 'ページ上をクリックして文字を入力。Escか外側クリックで確定。',
+    edittext: 'PDFにもとからある文字の行が青枠で表示されます。クリックすると書き換えできます。<br>※スキャンPDF（画像）の文字は対象外です。白塗り＋文字追加を使ってください。',
+    whiteout: 'ドラッグで白い四角を置き、下の文字や図を隠します。',
+    highlight: 'ドラッグで蛍光マーカーを引きます。',
+    rect: 'ドラッグで四角。Shiftで正方形。', ellipse: 'ドラッグで楕円。Shiftで正円。',
+    line: 'ドラッグで線。Shiftで45°単位。', arrow: 'ドラッグで矢印。Shiftで45°単位。',
+    ink: 'ドラッグで自由に書けます。', image: '角のハンドルで大きさを変更。Shiftで縦横比を自由に。',
+    stamp: 'ダブルクリックで文字を変更できます。',
+  }[k] || '';
+}
+function fitStamp(a){ const m = measureText(a.text, a.font, a.size); const pad = a.size*0.35; a.w = m.w + pad*2; a.h = m.h + pad*2; }
+function deleteSelectedAnn(){
+  if (!S.sel) return; const p = pageById(S.sel.pid); if (!p) return;
+  pushUndo(); p.anns = p.anns.filter(a => a.id !== S.sel.aid); S.sel = null;
+  renderLayer(p); renderProps(); renderThumbBadge(p);
+}
+function copyAnn(){ if (!S.sel) return; const p = pageById(S.sel.pid); const a = p?.anns.find(a => a.id === S.sel.aid); if (a) S.clip = JSON.stringify(a); }
+function pasteAnn(){
+  if (!S.clip) return; const p = pageById(S.cur) || S.pages[0]; if (!p) return;
+  pushUndo(); const a = JSON.parse(S.clip); a.id = nid();
+  if (a.type === 'edittext'){ a.type = 'text'; delete a.ox0; }
+  const same = S.sel && S.sel.pid === p.id; moveAnn(a, same ? 10 : 0, same ? 10 : 0);
+  p.anns.push(a); S.sel = {pid:p.id, aid:a.id}; S.clip = JSON.stringify(a);
+  renderLayer(p); renderProps(); renderThumbBadge(p);
+}
+
+// ===== 画像・スタンプ =====
+$('#bImage').onclick = () => { if (!S.pages.length) return toast('先にPDFを開いてください'); $('#fImage').click(); };
+$('#fImage').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    busy(true);
+    const info = await (await api('/upload-image', f)).json();
+    const p = pageById(S.cur) || S.pages[0]; const [W,H] = vis(p);
+    let w = Math.min(W*0.4, info.w*0.75), h = w * info.h / info.w;
+    if (h > H*0.5){ h = H*0.5; w = h * info.w / info.h; }
+    pushUndo();
+    const c = visibleCenter(p);
+    const a = {id:nid(), type:'image', img:info.id, x:c[0]-w/2, y:c[1]-h/2, w, h, ratio:info.w/info.h};
+    p.anns.push(a); S.sel = {pid:p.id, aid:a.id}; setTool('select'); renderLayer(p); renderProps(); renderThumbBadge(p);
+  } catch(err){ alert('画像を読み込めません: ' + err.message); }
+  finally { busy(false); }
+};
+function visibleCenter(p){
+  const el = pageEl(p.id), r = el.getBoundingClientRect(), v = viewer.getBoundingClientRect();
+  const [W,H] = vis(p);
+  const cx = ((Math.max(r.left, v.left) + Math.min(r.right, v.right))/2 - r.left) / S.zoom;
+  const cy = ((Math.max(r.top, v.top) + Math.min(r.bottom, v.bottom))/2 - r.top) / S.zoom;
+  return [Math.min(Math.max(cx, 20), W-20), Math.min(Math.max(cy, 20), H-20)];
+}
+function today(){ const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }
+function wareki(){ const d = new Date(); return `令和${d.getFullYear()-2018}年${d.getMonth()+1}月${d.getDate()}日`; }
+$('#bStamp').onclick = e => {
+  if (!S.pages.length) return toast('先にPDFを開いてください');
+  const items = [['承認'],['確認済'],['済'],['受領'],['社外秘'],['控'],['DRAFT'],['日付 '+today(), today()],[wareki()],['チェック ✓','✓']];
+  showMenu(e.currentTarget, [
+    ...items.map(([l, t]) => [l, () => placeStamp(t || l)]), '-',
+    ['文字を入力…', () => { const t = prompt('スタンプの文字'); if (t) placeStamp(t); }],
+  ]);
+};
+function placeStamp(text){
+  const p = pageById(S.cur) || S.pages[0];
+  pushUndo();
+  const st = S.styles.stamp;
+  const a = {id:nid(), type:'stamp', text, font:st.font, size:st.size, color:st.color, x:0, y:0, w:0, h:0};
+  fitStamp(a); const c = visibleCenter(p); a.x = c[0]-a.w/2; a.y = c[1]-a.h/2;
+  p.anns.push(a); S.sel = {pid:p.id, aid:a.id}; setTool('select'); renderLayer(p); renderProps(); renderThumbBadge(p);
+}
+
+// ===== メニュー =====
+function showMenu(anchor, items){
+  closeMenu();
+  const m = document.createElement('div'); m.className = 'menu'; m.id = 'menu';
+  for (const it of items){
+    if (it === '-'){ m.appendChild(document.createElement('hr')); continue; }
+    const b = document.createElement('button'); b.textContent = it[0]; b.onclick = () => { closeMenu(); it[1](); }; m.appendChild(b);
+  }
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect(); m.style.left = r.left + 'px'; m.style.top = (r.bottom + 4) + 'px';
+  setTimeout(() => addEventListener('pointerdown', closeOnOut), 0);
+}
+function closeOnOut(e){ if (!e.target.closest('#menu')) closeMenu(); }
+function closeMenu(){ $('#menu')?.remove(); removeEventListener('pointerdown', closeOnOut); }
+
+// ===== ページ操作 =====
+$('#bInsert').onclick = e => {
+  showMenu(e.currentTarget, [
+    ['PDF・画像ファイルを追加（選択ページの後）', () => { if (!S.pages.length) $('#fOpen').click(); else $('#fInsert').click(); }],
+    ['PDF・画像ファイルを先頭に追加', () => { S._insertAt = 0; $('#fInsert').click(); }],
+    ['PDF・画像ファイルを末尾に追加', () => { S._insertAt = S.pages.length; $('#fInsert').click(); }],
+    '-',
+    ['空白ページ（選択ページと同じサイズ）', () => addBlank()],
+    ['空白ページ A4 縦', () => addBlank(595.28, 841.89)],
+    ['空白ページ A4 横', () => addBlank(841.89, 595.28)],
+    ['空白ページ A3 横', () => addBlank(1190.55, 841.89)],
+  ]);
+};
+$('#fInsert').onchange = e => { const at = S._insertAt; S._insertAt = null; openFiles(e.target.files, at != null ? {at} : 'insert'); e.target.value = ''; };
+$('#fOpen').onchange = e => { openFiles(e.target.files, 'open'); e.target.value = ''; };
+$('#bOpen').onclick = $('#bOpen2').onclick = () => $('#fOpen').click();
+
+function selectedIndexes(){
+  const ids = S.selPages.size ? S.selPages : new Set(S.cur ? [S.cur] : []);
+  return S.pages.map((p,i) => ids.has(p.id) ? i : -1).filter(i => i >= 0);
+}
+function addBlank(w, h){
+  if (!S.pages.length && !w){ w = 595.28; h = 841.89; }
+  const idx = selectedIndexes(); const ref = S.pages[idx[idx.length-1]] || S.pages[S.pages.length-1];
+  if (!w){ [w,h] = vis(ref); }
+  pushUndo();
+  const p = {id:nid(), src:'blank', index:0, bw:w, bh:h, rot:0, anns:[], name:'空白'};
+  const at = idx.length ? idx[idx.length-1] + 1 : S.pages.length;
+  S.pages.splice(at, 0, p); S.selPages = new Set([p.id]);
+  if (!S.fileName) S.fileName = '新規.pdf';
+  renderAll(); scrollToPage(p.id);
+}
+$('#pBlank').onclick = () => addBlank();
+function rotatePages(delta){
+  const idx = selectedIndexes(); if (!idx.length) return toast('ページを選択してください');
+  pushUndo();
+  for (const i of idx){
+    const p = S.pages[i]; const [W,H] = vis(p);
+    const f = delta > 0 ? ([x,y]) => [H - y, x] : ([x,y]) => [y, W - x];
+    const fr = (x0,y0,x1,y1) => { const [a,b] = f([x0,y0]), [c,d] = f([x1,y1]); return [Math.min(a,c), Math.min(b,d), Math.max(a,c), Math.max(b,d)]; };
+    for (const a of p.anns){
+      if (a.type === 'line' || a.type === 'arrow'){ [a.x1,a.y1] = f([a.x1,a.y1]); [a.x2,a.y2] = f([a.x2,a.y2]); }
+      else if (a.type === 'ink') a.points = a.points.map(f);
+      else if (a.type === 'text' || a.type === 'edittext'){
+        [a.x, a.y] = f([a.x, a.y]); if (delta > 0) a.x -= measureText(a.text, a.font, a.size).h;
+        if (a.ox0 != null) [a.ox0,a.oy0,a.ox1,a.oy1] = fr(a.ox0,a.oy0,a.ox1,a.oy1);
+      } else {
+        const [x0,y0,x1,y1] = fr(a.x, a.y, a.x+a.w, a.y+a.h);
+        if (a.type === 'image' || a.type === 'stamp'){ const cx=(x0+x1)/2, cy=(y0+y1)/2; a.x = cx-a.w/2; a.y = cy-a.h/2; }
+        else { a.x=x0; a.y=y0; a.w=x1-x0; a.h=y1-y0; }
+      }
+    }
+    p.rot = (p.rot + delta + 360) % 360;
+  }
+  renderAll();
+}
+$('#pRotL').onclick = () => rotatePages(-90);
+$('#pRotR').onclick = () => rotatePages(90);
+$('#pDup').onclick = () => {
+  const idx = selectedIndexes(); if (!idx.length) return;
+  pushUndo();
+  const copies = idx.map(i => { const c = JSON.parse(JSON.stringify(S.pages[i])); c.id = nid(); c.anns.forEach(a => a.id = nid()); return c; });
+  S.pages.splice(idx[idx.length-1]+1, 0, ...copies);
+  S.selPages = new Set(copies.map(c => c.id)); renderAll();
+};
+function deletePages(){
+  const idx = selectedIndexes(); if (!idx.length) return;
+  if (idx.length === S.pages.length && !confirm('すべてのページを削除しますか？')) return;
+  pushUndo();
+  const del = new Set(idx.map(i => S.pages[i].id));
+  const next = S.pages.find((p,i) => i > idx[idx.length-1] && !del.has(p.id)) || [...S.pages].reverse().find(p => !del.has(p.id));
+  S.pages = S.pages.filter(p => !del.has(p.id));
+  S.selPages = new Set(next ? [next.id] : []); S.cur = next?.id; S.sel = null;
+  renderAll(); toast(`${del.size} ページを削除しました`);
+}
+$('#pDel').onclick = deletePages;
+
+// サムネイルのクリック・ドラッグ並べ替え
+thumbsEl.addEventListener('click', e => {
+  const t = e.target.closest('.thumb'); if (!t) return;
+  const id = t.dataset.pid;
+  if (e.shiftKey && S.anchor){
+    const a = S.pages.findIndex(p => p.id === S.anchor), b = S.pages.findIndex(p => p.id === id);
+    S.selPages = new Set(S.pages.slice(Math.min(a,b), Math.max(a,b)+1).map(p => p.id));
+  } else if (e.ctrlKey || e.metaKey){
+    S.selPages.has(id) ? S.selPages.delete(id) : S.selPages.add(id); S.anchor = id;
+  } else { S.selPages = new Set([id]); S.anchor = id; }
+  thumbsEl.querySelectorAll('.thumb').forEach(el => el.classList.toggle('sel', S.selPages.has(el.dataset.pid)));
+  scrollToPage(id); thumbsEl.focus();
+});
+thumbsEl.tabIndex = 0;
+let dragIds = null;
+thumbsEl.addEventListener('dragstart', e => {
+  const t = e.target.closest('.thumb'); if (!t) return;
+  if (!S.selPages.has(t.dataset.pid)){ S.selPages = new Set([t.dataset.pid]); thumbsEl.querySelectorAll('.thumb').forEach(el => el.classList.toggle('sel', S.selPages.has(el.dataset.pid))); }
+  dragIds = S.pages.filter(p => S.selPages.has(p.id)).map(p => p.id);
+  e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'pages');
+});
+function dropTarget(e){
+  const ts = [...thumbsEl.querySelectorAll('.thumb')];
+  for (const t of ts){ const r = t.getBoundingClientRect(); if (e.clientY < r.top + r.height/2) return {el:t, before:true}; }
+  return ts.length ? {el:ts[ts.length-1], before:false} : null;
+}
+function clearDropMarks(){ thumbsEl.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before','drop-after')); }
+thumbsEl.addEventListener('dragover', e => {
+  e.preventDefault(); e.stopPropagation(); clearDropMarks();
+  const d = dropTarget(e); if (d) d.el.classList.add(d.before ? 'drop-before' : 'drop-after');
+  e.dataTransfer.dropEffect = dragIds ? 'move' : 'copy';
+});
+thumbsEl.addEventListener('dragleave', e => { if (!thumbsEl.contains(e.relatedTarget)) clearDropMarks(); });
+thumbsEl.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation(); clearDropMarks();
+  const d = dropTarget(e);
+  let at = d ? S.pages.findIndex(p => p.id === d.el.dataset.pid) + (d.before ? 0 : 1) : S.pages.length;
+  if (dragIds){
+    const moving = S.pages.filter(p => dragIds.includes(p.id));
+    const before = S.pages.slice(0, at).filter(p => !dragIds.includes(p.id)).length;
+    const rest = S.pages.filter(p => !dragIds.includes(p.id));
+    const order = [...rest.slice(0, before), ...moving, ...rest.slice(before)];
+    if (order.some((p,i) => p !== S.pages[i])){ pushUndo(); S.pages = order; renderAll(); scrollToPage(moving[0].id); }
+    dragIds = null;
+  } else if (e.dataTransfer.files.length){
+    openFiles(e.dataTransfer.files, S.pages.length ? {at} : 'open');
+  }
+});
+thumbsEl.addEventListener('dragend', () => { dragIds = null; clearDropMarks(); });
+
+// ビューアへのファイルドロップ
+viewer.addEventListener('dragover', e => { if (dragIds) return; e.preventDefault(); viewer.classList.add('dragover'); });
+viewer.addEventListener('dragleave', e => { if (!viewer.contains(e.relatedTarget)) viewer.classList.remove('dragover'); });
+viewer.addEventListener('drop', e => {
+  e.preventDefault(); viewer.classList.remove('dragover');
+  if (!e.dataTransfer.files.length) return;
+  if (!S.pages.length) return openFiles(e.dataTransfer.files, 'open');
+  showMenu({getBoundingClientRect:() => ({left:e.clientX, bottom:e.clientY})}, [
+    ['いまのファイルの末尾に追加（結合）', () => openFiles(e.dataTransfer.files, {at:S.pages.length})],
+    ['選択ページの後に挿入', () => openFiles(e.dataTransfer.files, 'insert')],
+    ['新しく開く（いまの内容は閉じる）', () => openFiles(e.dataTransfer.files, 'open')],
+  ]);
+});
+
+// ===== 表示位置・ズーム =====
+function scrollToPage(id){ const el = pageEl(id); if (el) viewer.scrollTo({top: el.offsetTop - 20, behavior:'smooth'}); setCurrent(id); }
+function setCurrent(id){
+  if (S.cur === id) return; S.cur = id;
+  thumbsEl.querySelectorAll('.thumb').forEach(el => el.classList.toggle('cur', el.dataset.pid === id));
+  const i = S.pages.findIndex(p => p.id === id); $('#stPage').textContent = i >= 0 ? `${i+1} / ${S.pages.length} ページ` : '';
+  const t = thumbsEl.querySelector(`.thumb[data-pid="${id}"]`); if (t){ const r = t.getBoundingClientRect(), v = thumbsEl.getBoundingClientRect(); if (r.top < v.top || r.bottom > v.bottom) t.scrollIntoView({block:'nearest'}); }
+}
+viewer.addEventListener('scroll', () => {
+  clearTimeout(viewer._t); viewer._t = setTimeout(() => {
+    const mid = viewer.getBoundingClientRect().top + viewer.clientHeight/3;
+    for (const el of pagesEl.children){ const r = el.getBoundingClientRect(); if (r.bottom > mid){ setCurrent(el.dataset.pid); break; } }
+  }, 80);
+});
+function setZoom(z, keepCenter=true){
+  z = Math.min(5, Math.max(0.2, z));
+  const ratio = z / S.zoom; const cy = viewer.scrollTop + viewer.clientHeight/2, cx = viewer.scrollLeft + viewer.clientWidth/2;
+  S.zoom = z; renderPages();
+  if (keepCenter){ viewer.scrollTop = cy*ratio - viewer.clientHeight/2; viewer.scrollLeft = cx*ratio - viewer.clientWidth/2; }
+}
+function fitWidth(render=true){ const p = pageById(S.cur) || S.pages[0]; if (!p) return; const [w] = vis(p); const z = viewer.clientWidth > 300 ? (viewer.clientWidth - 60) / w : 1; if (render) setZoom(z, false); else S.zoom = Math.min(5, Math.max(.2, z)); }
+$('#bZoomIn').onclick = () => setZoom(S.zoom * 1.2);
+$('#bZoomOut').onclick = () => setZoom(S.zoom / 1.2);
+$('#bFit').onclick = () => fitWidth();
+$('#bFitPage').onclick = () => { const p = pageById(S.cur) || S.pages[0]; if (!p) return; const [w,h] = vis(p); setZoom(Math.min((viewer.clientWidth-60)/w, (viewer.clientHeight-40)/h)); scrollToPage(p.id); };
+viewer.addEventListener('wheel', e => { if (e.ctrlKey){ e.preventDefault(); setZoom(S.zoom * (e.deltaY < 0 ? 1.1 : 1/1.1)); } }, {passive:false});
+
+// ===== 保存 =====
+function exportSpec(pages, opts){
+  return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh,
+    annotations: p.anns.filter(a => !(a.type === 'text' && !a.text.trim())).map(a => {
+      const o = {...a};
+      if (a.type === 'text' || a.type === 'edittext'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; }
+      if (a.type === 'stamp'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; o.pad = a.size*0.35; }
+      return o;
+    })})), options: opts};
+}
+$('#bSave').onclick = () => {
+  if (!S.pages.length) return;
+  $('#sName').value = S.fileName || 'document.pdf';
+  document.querySelector('input[name=sRange][value=sel]').disabled = S.selPages.size === 0;
+  if (!S.selPages.size) document.querySelector('input[name=sRange][value=all]').checked = true;
+  $('#dSave').showModal();
+};
+function saveOptions(){
+  return {
+    pageNumbers: $('#pnOn').checked ? {enabled:true, pos:$('#pnPos').value, format:$('#pnFmt').value, start:+$('#pnStart').value, from:+$('#pnFrom').value, size:+$('#pnSize').value} : null,
+    watermark: $('#wmOn').checked ? {enabled:true, text:$('#wmText').value, size:+$('#wmSize').value, color:$('#wmColor').value, opacity:$('#wmOpacity').value/100} : null,
+    compress: $('#sCompress').checked,
+    password: $('#pwOn').checked ? $('#pwVal').value : '',
+  };
+}
+async function saveBlob(name, getBlob){
+  // 保存先を選べるブラウザ（Edge/Chrome）はダイアログで、それ以外はダウンロード
+  if (window.showSaveFilePicker){
+    let handle;
+    try { handle = await showSaveFilePicker({suggestedName:name, types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]}); }
+    catch(e){ if (e.name === 'AbortError') return false; handle = null; }
+    if (handle){
+      const blob = await getBlob(); const w = await handle.createWritable(); await w.write(blob); await w.close();
+      return handle.name;
+    }
+  }
+  const blob = await getBlob();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return name;
+}
+$('#sOk').onclick = async e => {
+  e.preventDefault();
+  if ($('#pwOn').checked && !$('#pwVal').value) return alert('パスワードを入力してください');
+  let name = $('#sName').value.trim() || 'document.pdf'; if (!/\.pdf$/i.test(name)) name += '.pdf';
+  const pages = document.querySelector('input[name=sRange]:checked').value === 'sel' ? S.pages.filter(p => S.selPages.has(p.id)) : S.pages;
+  const spec = exportSpec(pages, saveOptions());
+  $('#dSave').close();
+  try {
+    const saved = await saveBlob(name, async () => {
+      busy(true);
+      try { return await (await api('/export', JSON.stringify(spec), 'application/json')).blob(); }
+      finally { busy(false); }
+    });
+    if (saved){ if (pages === S.pages){ S.fileName = saved; S.dirty = false; updateButtons(); } toast('保存しました: ' + saved); }
+  } catch(err){ busy(false); alert('保存できませんでした: ' + err.message); }
+};
+
+// 分割・抽出
+$('#bSplit').onclick = () => {
+  $('#spBase').value = (S.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+  $('#dSplit').showModal();
+};
+function parseRanges(str, n){
+  const parts = [];
+  for (const seg of str.split(/[,、\s]+/).filter(Boolean)){
+    const m = seg.match(/^(\d+)(?:[-~〜](\d+))?$/); if (!m) throw new Error('範囲の書き方が正しくありません: ' + seg);
+    let a = +m[1], b = m[2] ? +m[2] : a; if (a > b) [a,b] = [b,a];
+    if (a < 1 || b > n) throw new Error(`ページ ${seg} は範囲外です（全 ${n} ページ）`);
+    parts.push([a-1, b-1]);
+  }
+  return parts;
+}
+$('#spOk').onclick = async e => {
+  e.preventDefault();
+  const mode = document.querySelector('input[name=spMode]:checked').value, base = $('#spBase').value.trim() || 'document';
+  let groups = [];
+  try {
+    if (mode === 'sel'){ const pg = S.pages.filter(p => S.selPages.has(p.id)); if (!pg.length) throw new Error('左のサムネイルでページを選択してください（Ctrl/Shift+クリックで複数選択）'); groups = [{name:base + '_抽出.pdf', pages:pg}]; }
+    else if (mode === 'each') groups = S.pages.map((p,i) => ({name:`${base}_${String(i+1).padStart(3,'0')}.pdf`, pages:[p]}));
+    else if (mode === 'n'){ const n = Math.max(1, +$('#spN').value); for (let i = 0; i < S.pages.length; i += n) groups.push({name:`${base}_${i+1}-${Math.min(i+n, S.pages.length)}.pdf`, pages:S.pages.slice(i, i+n)}); }
+    else groups = parseRanges($('#spRanges').value, S.pages.length).map(([a,b]) => ({name:`${base}_${a+1}${b>a?'-'+(b+1):''}.pdf`, pages:S.pages.slice(a, b+1)}));
+  } catch(err){ return alert(err.message); }
+  $('#dSplit').close();
+  if (groups.length === 1){
+    const spec = exportSpec(groups[0].pages, {});
+    const saved = await saveBlob(groups[0].name, async () => { busy(true); try { return await (await api('/export', JSON.stringify(spec), 'application/json')).blob(); } finally { busy(false); } });
+    if (saved) toast('保存しました: ' + saved);
+    return;
+  }
+  let dir = null;
+  if (window.showDirectoryPicker){ try { dir = await showDirectoryPicker({mode:'readwrite'}); } catch(e){ if (e.name === 'AbortError') return; } }
+  busy(true);
+  try {
+    for (const g of groups){
+      const blob = await (await api('/export', JSON.stringify(exportSpec(g.pages, {})), 'application/json')).blob();
+      if (dir){ const fh = await dir.getFileHandle(g.name, {create:true}); const w = await fh.createWritable(); await w.write(blob); await w.close(); }
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = g.name; a.click(); await new Promise(r => setTimeout(r, 300)); }
+    }
+    toast(`${groups.length} 個のPDFに分けて保存しました`);
+  } catch(err){ alert('保存できませんでした: ' + err.message); }
+  finally { busy(false); }
+};
+
+// ===== キーボード =====
+addEventListener('keydown', e => {
+  if (e.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
+  const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
+  if (c && k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (c && k === 'y'){ e.preventDefault(); redo(); return; }
+  if (c && k === 's'){ e.preventDefault(); $('#bSave').click(); return; }
+  if (c && k === 'o'){ e.preventDefault(); $('#fOpen').click(); return; }
+  if (c && k === 'c'){ copyAnn(); return; }
+  if (c && k === 'v'){ e.preventDefault(); pasteAnn(); return; }
+  if (c && (k === '+' || k === '=' || k === ';')){ e.preventDefault(); setZoom(S.zoom*1.2); return; }
+  if (c && k === '-'){ e.preventDefault(); setZoom(S.zoom/1.2); return; }
+  if (c && k === 'a' && document.activeElement === thumbsEl){ e.preventDefault(); S.selPages = new Set(S.pages.map(p => p.id)); renderThumbs(); return; }
+  if (k === 'delete' || k === 'backspace'){
+    if (S.sel){ e.preventDefault(); deleteSelectedAnn(); }
+    else if (document.activeElement === thumbsEl || S.selPages.size){ e.preventDefault(); deletePages(); }
+    return;
+  }
+  if (S.sel && k.startsWith('arrow')){
+    e.preventDefault(); const p = pageById(S.sel.pid), a = p.anns.find(a => a.id === S.sel.aid); if (!a) return;
+    if (!e.repeat) pushUndo();
+    const st = e.shiftKey ? 10 : 1;
+    moveAnn(a, k === 'arrowleft' ? -st : k === 'arrowright' ? st : 0, k === 'arrowup' ? -st : k === 'arrowdown' ? st : 0);
+    renderLayer(p); return;
+  }
+  if (k === 'escape'){ if (S.sel){ const p = pageById(S.sel.pid); S.sel = null; p && renderLayer(p); renderProps(); } else setTool('select'); return; }
+  if (c || e.altKey) return;
+  const map = {v:'select', t:'text', e:'edittext', w:'whiteout', h:'highlight', r:'rect', o:'ellipse', l:'line', a:'arrow', p:'ink'};
+  if (map[k]) setTool(map[k]);
+});
+$('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
+addEventListener('beforeunload', e => { if (S.dirty){ e.preventDefault(); e.returnValue = ''; } });
+addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(() => {}, 200); });
+
+// ===== 起動 =====
+(async () => {
+  setTool('select'); updateButtons();
+  try {
+    const init = await (await fetch('/initial')).json();
+    if (init.length){
+      S.pages = srcToPages(init);
+      S.fileName = init.length === 1 ? init[0].name : '結合.pdf';
+      fitWidth(false); renderAll();
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>
