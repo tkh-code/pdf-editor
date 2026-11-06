@@ -179,6 +179,7 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
       <button class="tb primary" id="bOpen2">PDFを開く</button>
       <div style="margin-top:8px">複数のPDFや画像（JPG/PNG）をまとめて入れると結合できます</div>
       <div>SVG・XPS・テキスト（.txt）も開くとPDFに変換されます</div>
+      <div>DocuWorks（.xdw / .xbd）は <a href="#" id="lnkDW">DocuWorks→PDF 変換ツール</a> でPDFにしてから開きます</div>
     </div>
   </div>
 
@@ -187,8 +188,8 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
   <div id="status"><span id="stFile">ファイルなし</span><span id="stPage"></span><span id="stMsg"></span></div>
 </div>
 
-<input type="file" id="fOpen" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
-<input type="file" id="fInsert" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
+<input type="file" id="fOpen" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff,.xdw,.xbd" multiple hidden>
+<input type="file" id="fInsert" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff,.xdw,.xbd" multiple hidden>
 <input type="file" id="fReplace" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
 <input type="file" id="fImage" accept="image/*" hidden>
 
@@ -249,6 +250,21 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
   <div class="r"><label>大きさ</label><input type="number" id="slSize" value="18" min="8" max="60" style="width:60px"> mm
     <label style="min-width:auto;margin-left:12px">色</label><input type="color" id="slColor" value="#d00000"></div>
   <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="slOk">押す</button></div>
+</form></dialog>
+
+<dialog id="dDW"><form method="dialog">
+  <h2>DocuWorks → PDF 変換</h2>
+  <p id="dwFiles" class="note2" style="color:#c00;display:none"></p>
+  <p style="margin:0 0 8px">DocuWorks の文書（.xdw）・バインダー（.xbd）はブラウザでは直接読めません。
+  DocuWorks が入っているPCで、次の変換ツールを使ってPDFにしてから開いてください（Python などのインストールは不要）。</p>
+  <ol style="margin:0 0 8px;padding-left:20px;line-height:1.7">
+    <li><a href="docuworks/dw2pdf.zip" download="DocuWorks_PDF変換.zip"><b>変換ツールをダウンロード</b></a>（ZIP）して「すべて展開」</li>
+    <li>中の <b>setup.bat</b> をダブルクリック（最初の1回だけ。「PCが保護されました」と出たら「詳細情報」→「実行」）</li>
+    <li>デスクトップにできる <b>「DocuWorks→PDF変換」</b> に .xdw / .xbd をドロップ（右クリック「送る」からも使えます）</li>
+    <li>元のファイルと同じフォルダにできた PDF を、この画面にドロップ</li>
+  </ol>
+  <p class="note2">複数ファイル・フォルダもまとめて変換できます。ページを画像（300dpi、付箋や書き込みも含む）にして変換するため、PDFの文字は選択・検索できません。文字を残したいときは DocuWorks Desk の「ファイル」→「PDF文書に変換」を使ってください。</p>
+  <div class="btns"><button class="ok" value="ok">閉じる</button></div>
 </form></dialog>
 
 <dialog id="dConv"><form method="dialog">
@@ -399,6 +415,8 @@ function srcToPages(srcs){
   return out;
 }
 async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
+  const dw = [...files].filter(f => /\.(xdw|xbd)$/i.test(f.name));
+  if (dw.length) showDocuWorks(dw.map(f => f.name));
   files = [...files].filter(f => /pdf$|^image\//i.test(f.type) || /\.(pdf|png|jpe?g|gif|bmp|tiff?|svg|xps|oxps|txt|epub)$/i.test(f.name));
   if (!files.length) return;
   if (mode === 'open' && S.dirty && S.pages.length && !confirm('編集中の内容は破棄されます。開きますか？')) return;
@@ -1434,9 +1452,17 @@ $('#bConvert').onclick = e => {
     ['複数の画像を1つのPDFにまとめる', () => { toast('画像をまとめて選ぶと1つのPDFになります（順番は左で並べ替え）', 4500); $('#fOpen').click(); }],
     ['用紙サイズをそろえる（A3→A4 など）', () => { if (!S.pages.length) return toast('先にPDFを開いてください'); $('#bSave').click(); $('#sPaper').value = 'A4'; $('#sPaper').focus(); }],
     '-',
-    ['Word・Excel・DocuWorks から PDF にするには', () => alert('Word・Excel・DocuWorks のファイルは、このブラウザでは直接読めません。\n\n・Word / Excel：「ファイル」→「名前を付けて保存」で種類を「PDF」にする\n・DocuWorks：DocuWorks Desk で文書を選び「ファイル」→「PDF文書に変換」\n\nPDFにしたあと、ここで開けば編集・結合できます。')],
+    ['DocuWorks（.xdw / .xbd）→ PDF …', () => showDocuWorks()],
+    ['Word・Excel から PDF にするには', () => alert('Word・Excel のファイルは、このブラウザでは直接読めません。\n\n「ファイル」→「名前を付けて保存」で種類を「PDF」にしてから、ここで開けば編集・結合できます。')],
   ]);
 };
+function showDocuWorks(names){
+  const el = $('#dwFiles');
+  if (names && names.length){ el.style.display = ''; el.textContent = 'DocuWorks のファイルは開けません：' + names.join('、'); }
+  else el.style.display = 'none';
+  $('#dDW').showModal();
+}
+$('#lnkDW').onclick = e => { e.preventDefault(); showDocuWorks(); };
 async function exportedSource(pages){
   const blob = await exportPDF(pages, {});
   const data = new Uint8Array(await blob.arrayBuffer());
