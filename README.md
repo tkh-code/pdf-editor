@@ -26,7 +26,7 @@ Acrobat の有料機能（文字の追加・書き換え、ページの追加・
 | ページ | 追加（PDF・画像・空白ページ）、ドラッグで並べ替え、削除、回転、複製、**差し替え**、**しおり（目次）**、複数PDFの結合 |
 | 保存・印刷 | 透かし文字、パスワード、圧縮、**用紙サイズをそろえる（A3→A4縮小など）**、選択ページのみ保存、印刷 |
 | 分割 | 選択ページの抽出、1ページずつ・Nページごと・範囲指定（例 `1-3, 4-6`）で分割 |
-| 変換 | **DocuWorks→PDF（付属ツール）**、**PDF→画像（PNG/JPEG、解像度指定）**、**PDF→テキスト**、画像・SVG・XPS・テキスト→PDF、複数画像→1つのPDF |
+| 変換 | **DocuWorks（.xdw/.xbd）をドロップするとPDFにして開く**（数千ページの計算書も数分）、**PDF→画像（PNG/JPEG、解像度指定）**、**PDF→テキスト**、画像・SVG・XPS・テキスト→PDF、複数画像→1つのPDF |
 
 元に戻す（Ctrl+Z）・やり直し（Ctrl+Y）、Ctrl+ホイールで拡大縮小。
 
@@ -38,7 +38,21 @@ Acrobat の有料機能（文字の追加・書き換え、ページの追加・
 - Helvetica／Times は英数字専用です（日本語は表示されません）。
 - パスワード付きのPDFは開けません。
 - Word・Excel のファイルはブラウザでは直接読めません。各ソフトで PDF にしてから開いてください。
-- DocuWorks（.xdw / .xbd）は付属の **DocuWorks→PDF 変換ツール**（画面の「変換」→「DocuWorks → PDF」からダウンロード、`docuworks/`）で PDF にしてから開きます。DocuWorks が入った PC で動き、Python 等は不要。ページは画像になります。ZIP は `docuworks/` の 3 ファイルを固めたもの（直したら作り直す）。
+- DocuWorks（.xdw / .xbd）は、PCごとに1回だけ準備（画面の「変換」→「DocuWorks → PDF」→「初めて使うとき」から ZIP をダウンロードし setup.bat）すると、
+  この画面にドロップするだけで PDF にして開けます。変換はそのPCの DocuWorks で行い、ファイルは外に送りません。ページは画像になります（文字の検索は不可）。
+
+## DocuWorks → PDF の仕組み（`docuworks/`）
+
+- `dw2pdf.ps1`：変換本体（PowerShell＋C#、Python 不要）。DocuWorks の `xdwapi.dll` でページを画像にし、PDF を直接書き出す。
+  - 「自動」では、ページを 300dpi の白黒（G4 圧縮、1ページ数十KB）にし、色や灰色の塗りがある部分だけ 150dpi のカラー画像を透明マスク付きで重ねる。
+    ほぼ全面カラーのページはカラー JPEG（既定 200dpi）。白黒／グレー／すべてカラーも選べる。
+  - ページは CPU 数に合わせて同時に変換（最大 12）。日吉津グランルーフ計算書 v3（1,995 頁）で 1 頁あたり約 0.17 秒。
+  - `-Serve`：PDF編集ソフトから呼ぶ変換ヘルパー。`127.0.0.1:52871` だけで待ち受け、受け付けるのは tkh-code.github.io と localhost の画面のみ。
+    `/ping` `/convert`（POST でファイル本体）`/status` `/result` `/cancel`。
+  - ファイル・フォルダを引数に渡すと（ショートカットへのドロップ／送る）その場でまとめて変換。
+- `setup.bat`：`%LOCALAPPDATA%\DocuWorksPDF` に本体を置き、ログオン時の自動起動（スタートアップ）・`pdfeditor-dw://`（画面の「変換ツールを起動」ボタン用、HKCU）・デスクトップと「送る」のショートカットを作る。管理者権限は不要。
+- `dw2pdf.zip`：配布用（`dw2pdf.ps1`・`setup.bat`・`README.txt`）。直したら作り直す（Compress-Archive）。ps1 は UTF-8（BOM 付き）で保存する。
+- アンインストール：スタートアップ・デスクトップ・送る のショートカット、`%LOCALAPPDATA%\DocuWorksPDF`、レジストリ `HKCU\Software\Classes\pdfeditor-dw` を消す。
 - 墨消しは保存したPDFで元に戻せません。元のファイルは残しておいてください。
 
 ## 仕組み・ライセンス

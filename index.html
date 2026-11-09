@@ -112,6 +112,20 @@ dialog.wide{width:min(800px,96vw)}
 dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}
 #busy{position:fixed;inset:0;background:rgba(255,255,255,.5);display:none;align-items:center;justify-content:center;z-index:90;font-size:15px}
 #busy.show{display:flex}
+#dwBusy{position:fixed;inset:0;background:rgba(255,255,255,.6);display:none;align-items:center;justify-content:center;z-index:95}
+#dwBusy.show{display:flex}
+#dwBusy .box{background:#fff;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:16px 20px;width:min(440px,92vw)}
+#dwBusy .t{font-weight:bold;word-break:break-all}
+#dwBusy .bar{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin:12px 0 8px}
+#dwBusy .bar i{display:block;height:100%;width:0;background:var(--sel);transition:width .3s}
+#dwBusy .m{font-size:13px;color:var(--muted);min-height:1.4em}
+#dwBusy .btns{display:flex;justify-content:flex-end;margin-top:10px}
+#dwBusy button{padding:4px 14px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.dwstate{padding:8px 10px;border-radius:6px;background:#f4f6f8;margin:0 0 10px;font-size:13px;line-height:1.6}
+.dwstate button{padding:3px 10px;border-radius:5px;border:1px solid var(--sel);background:var(--sel);color:#fff;cursor:pointer;margin-left:4px}
+#dwSetup{margin:4px 0 10px;font-size:13px}
+#dwSetup summary{cursor:pointer;color:var(--sel)}
+#dwSetup ol{margin:6px 0 0;padding-left:20px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -179,7 +193,7 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
       <button class="tb primary" id="bOpen2">PDFを開く</button>
       <div style="margin-top:8px">複数のPDFや画像（JPG/PNG）をまとめて入れると結合できます</div>
       <div>SVG・XPS・テキスト（.txt）も開くとPDFに変換されます</div>
-      <div>DocuWorks（.xdw / .xbd）は <a href="#" id="lnkDW">DocuWorks→PDF 変換ツール</a> でPDFにしてから開きます</div>
+      <div>DocuWorks（.xdw / .xbd）もドロップするとPDFにして開きます（<a href="#" id="lnkDW">準備・設定</a>）</div>
     </div>
   </div>
 
@@ -254,18 +268,28 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
 
 <dialog id="dDW"><form method="dialog">
   <h2>DocuWorks → PDF 変換</h2>
-  <p id="dwFiles" class="note2" style="color:#c00;display:none"></p>
-  <p style="margin:0 0 8px">DocuWorks の文書（.xdw）・バインダー（.xbd）はブラウザでは直接読めません。
-  DocuWorks が入っているPCで、次の変換ツールを使ってPDFにしてから開いてください（Python などのインストールは不要）。</p>
-  <ol style="margin:0 0 8px;padding-left:20px;line-height:1.7">
-    <li><a href="docuworks/dw2pdf.zip" download="DocuWorks_PDF変換.zip"><b>変換ツールをダウンロード</b></a>（ZIP）して「すべて展開」</li>
-    <li>中の <b>setup.bat</b> をダブルクリック（最初の1回だけ。「PCが保護されました」と出たら「詳細情報」→「実行」）</li>
-    <li>デスクトップにできる <b>「DocuWorks→PDF変換」</b> に .xdw / .xbd をドロップ（右クリック「送る」からも使えます）</li>
-    <li>元のファイルと同じフォルダにできた PDF を、この画面にドロップ</li>
-  </ol>
-  <p class="note2">複数ファイル・フォルダもまとめて変換できます。ページを画像（300dpi、付箋や書き込みも含む）にして変換するため、PDFの文字は選択・検索できません。文字を残したいときは DocuWorks Desk の「ファイル」→「PDF文書に変換」を使ってください。</p>
-  <div class="btns"><button class="ok" value="ok">閉じる</button></div>
+  <div id="dwState" class="dwstate"></div>
+  <p id="dwPend" class="note2" style="display:none"></p>
+  <div class="r"><label>画質</label><select id="dwMode">
+    <option value="auto">自動（白黒のページは白黒、色のあるページはカラー）</option>
+    <option value="mono">白黒（いちばん軽くて速い。色の付いた部分は黒くなります）</option>
+    <option value="gray">グレー</option>
+    <option value="color">すべてカラー</option></select></div>
+  <div class="r"><label>カラーの解像度</label><select id="dwDpi"><option value="150">150 dpi（軽い）</option><option value="200">200 dpi（標準）</option><option value="300">300 dpi（きれい・重い）</option></select></div>
+  <div class="r"><label>変換したら</label><label><input type="radio" name="dwAfter" value="open"> この画面で開く</label><label><input type="radio" name="dwAfter" value="save"> PDFとして保存だけする（数千ページ向け）</label></div>
+  <details id="dwSetup"><summary>初めて使うとき（PCごとに1回だけ準備）</summary>
+    <ol>
+      <li><a href="docuworks/dw2pdf.zip" download="DocuWorks_PDF変換.zip"><b>変換ツールをダウンロード</b></a>（ZIP）して「すべて展開」</li>
+      <li>中の <b>setup.bat</b> をダブルクリック（「PCが保護されました」と出たら「詳細情報」→「実行」）</li>
+      <li>この画面に戻ると「つながっています」になります。あとは .xdw / .xbd をドロップするだけです</li>
+    </ol>
+    <div class="note2" style="margin:6px 0 0">DocuWorks が入っているPCで使えます。デスクトップにできる「DocuWorks→PDF変換」にドロップしても、まとめてPDFにできます。</div>
+  </details>
+  <p class="note2">白黒のページは 300dpi の白黒（文字がくっきり、1ページ数十KB）、色のあるページはカラー画像にします。複数ページを同時に変換するので、構造計算書のような数千ページの文書も数分で終わります。PDFの文字は選択・検索できません（画像になります）。ファイルはこのPCの中だけで変換し、外には送りません。</p>
+  <div class="btns"><button value="cancel">閉じる</button><button type="button" class="ok" id="dwGo">ファイルを選んで変換</button></div>
 </form></dialog>
+<input type="file" id="fDW" accept=".xdw,.xbd" multiple hidden>
+<div id="dwBusy"><div class="box"><div class="t" id="dwbTitle"></div><div class="bar"><i id="dwbBar"></i></div><div class="m" id="dwbMsg"></div><div class="btns"><button type="button" id="dwbCancel">中止</button></div></div></div>
 
 <dialog id="dConv"><form method="dialog">
   <h2>画像に変換</h2>
@@ -415,8 +439,14 @@ function srcToPages(srcs){
   return out;
 }
 async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
-  const dw = [...files].filter(f => /\.(xdw|xbd)$/i.test(f.name));
-  if (dw.length) showDocuWorks(dw.map(f => f.name));
+  if ([...files].some(isDW)){   // DocuWorks はこのPCの変換ツールで PDF にしてから開く
+    if (mode === 'open' && S.dirty && S.pages.length && !confirm('編集中の内容は破棄されます。開きますか？')) return;
+    if (!(await dwPing(true))){ showDocuWorks({files:[...files], mode}); return; }
+    const pdfs = await dwConvert([...files].filter(isDW), dwPrefs());
+    if (!pdfs) return;
+    files = [...files].map(f => isDW(f) ? pdfs.shift() : f);
+    if (mode === 'open') S.dirty = false;
+  }
   files = [...files].filter(f => /pdf$|^image\//i.test(f.type) || /\.(pdf|png|jpe?g|gif|bmp|tiff?|svg|xps|oxps|txt|epub)$/i.test(f.name));
   if (!files.length) return;
   if (mode === 'open' && S.dirty && S.pages.length && !confirm('編集中の内容は破棄されます。開きますか？')) return;
@@ -1456,13 +1486,128 @@ $('#bConvert').onclick = e => {
     ['Word・Excel から PDF にするには', () => alert('Word・Excel のファイルは、このブラウザでは直接読めません。\n\n「ファイル」→「名前を付けて保存」で種類を「PDF」にしてから、ここで開けば編集・結合できます。')],
   ]);
 };
-function showDocuWorks(names){
-  const el = $('#dwFiles');
-  if (names && names.length){ el.style.display = ''; el.textContent = 'DocuWorks のファイルは開けません：' + names.join('、'); }
-  else el.style.display = 'none';
-  $('#dDW').showModal();
+// ===== DocuWorks → PDF（このPCの変換ツール docuworks/dw2pdf.ps1 -Serve を 127.0.0.1 で呼ぶ） =====
+const DW = {url:'http://127.0.0.1:52871', ok:false, pending:null, job:null, cancel:false};
+function isDW(f){ return /\.(xdw|xbd)$/i.test(f.name); }
+const dwSleep = ms => new Promise(r => setTimeout(r, ms));
+function dwPrefs(){
+  let v = {}; try { v = JSON.parse(localStorage.getItem('pdfedit.dw') || '{}'); } catch(e){}
+  return {mode: v.mode || 'auto', dpi: +v.dpi || 200, after: v.after || 'open'};
+}
+function dwSavePrefs(){
+  const v = {mode:$('#dwMode').value, dpi:+$('#dwDpi').value, after:document.querySelector('input[name=dwAfter]:checked').value};
+  try { localStorage.setItem('pdfedit.dw', JSON.stringify(v)); } catch(e){}
+  return v;
+}
+async function dwPing(quiet){
+  try { const r = await fetch(DW.url + '/ping', {signal: AbortSignal.timeout(2500)}); const j = await r.json(); DW.ok = !!j.ok; DW.version = j.version; }
+  catch(e){ DW.ok = false; }
+  if (!quiet) dwShowState();
+  return DW.ok;
+}
+function dwShowState(checking){
+  const el = $('#dwState');
+  if (checking) el.textContent = '変換ツールを確認中…';
+  else if (DW.ok) el.innerHTML = '<b style="color:#1a7f37">✓ 変換ツールにつながっています</b>（このPCの DocuWorks で変換します）';
+  else {
+    el.innerHTML = '<b style="color:#c00">変換ツールが起動していません。</b><button type="button" id="dwLaunch">変換ツールを起動</button>'
+      + '<div class="note2" style="margin:4px 0 0">「pdfeditor-dw を開きますか」と出たら「開く」を押してください。何も出ないときは、まだ準備ができていません（下の「初めて使うとき」）。</div>';
+    $('#dwLaunch').onclick = dwLaunch;
+  }
+  if (!checking) $('#dwSetup').open = !DW.ok;
+  const n = DW.pending ? DW.pending.files.filter(isDW).length : 0;
+  $('#dwGo').textContent = n ? `変換して開く（${n} 件）` : 'ファイルを選んで変換';
+  $('#dwGo').disabled = !DW.ok;
+}
+async function dwLaunch(){
+  // setup.bat で登録した pdfeditor-dw:// を開くと、変換ツールが画面なしで起動する
+  let fr = $('#dwFrame');
+  if (!fr){ fr = document.createElement('iframe'); fr.id = 'dwFrame'; fr.style.display = 'none'; document.body.appendChild(fr); }
+  fr.src = 'pdfeditor-dw://start?' + Date.now();
+  $('#dwState').textContent = '変換ツールを起動しています…（10秒ほどかかります）';
+  for (let i = 0; i < 40; i++){ await dwSleep(1000); if (await dwPing(true)) break; }
+  dwShowState();
+}
+async function showDocuWorks(pending){
+  DW.pending = pending || null;
+  const p = dwPrefs();
+  $('#dwMode').value = p.mode; $('#dwDpi').value = p.dpi;
+  document.querySelector(`input[name=dwAfter][value=${p.after}]`).checked = true;
+  const pe = $('#dwPend');
+  if (pending){ pe.style.display = ''; pe.textContent = '変換するファイル：' + pending.files.filter(isDW).map(f => f.name).join('、'); }
+  else pe.style.display = 'none';
+  document.querySelectorAll('input[name=dwAfter]').forEach(r => r.disabled = !!pending);
+  dwShowState(true);
+  if (!$('#dDW').open) $('#dDW').showModal();
+  await dwPing();
 }
 $('#lnkDW').onclick = e => { e.preventDefault(); showDocuWorks(); };
+$('#dDW').addEventListener('close', () => { DW.pending = null; });
+$('#dwGo').onclick = () => {
+  dwSavePrefs();
+  if (DW.pending){ const p = DW.pending; $('#dDW').close(); openFiles(p.files, p.mode); return; }
+  $('#fDW').click();
+};
+$('#fDW').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  $('#dDW').close();
+  if (dwPrefs().after === 'save') dwConvertAndSave(files);
+  else openFiles(files, 'open');
+};
+$('#dwbCancel').onclick = () => { DW.cancel = true; $('#dwbMsg').textContent = '中止しています…'; };
+function dwProgress(title, ratio, msg){
+  $('#dwbTitle').textContent = title; $('#dwbBar').style.width = Math.round(ratio * 100) + '%'; $('#dwbMsg').textContent = msg;
+}
+function dwFmtSec(s){ return s >= 60 ? `${Math.floor(s/60)} 分 ${s%60} 秒` : `${s} 秒`; }
+async function dwConvert(files, prefs){   // DocuWorks のファイル → PDF の File（中止・失敗は null）
+  DW.cancel = false; $('#dwBusy').classList.add('show');
+  const out = [];
+  try {
+    for (const [k, f] of files.entries()){
+      const title = 'DocuWorks → PDF：' + f.name + (files.length > 1 ? `（${k+1} / ${files.length}）` : '');
+      dwProgress(title, 0, `変換ツールにファイルを渡しています…（${(f.size/1048576).toFixed(1)} MB）`);
+      const r = await fetch(`${DW.url}/convert?name=${encodeURIComponent(f.name)}&mode=${prefs.mode}&color=${prefs.dpi}`,
+        {method:'POST', body:f, headers:{'Content-Type':'application/octet-stream'}});
+      const j = await r.json();
+      if (!r.ok || !j.id) throw new Error(j.error || ('HTTP ' + r.status));
+      DW.job = j.id;
+      let st;
+      while (true){
+        await dwSleep(500);
+        if (DW.cancel){ fetch(`${DW.url}/cancel?id=${j.id}`, {method:'POST'}).catch(() => {}); toast('変換を中止しました'); return null; }
+        st = await (await fetch(`${DW.url}/status?id=${j.id}`)).json();
+        if (st.state === 'done') break;
+        if (st.state === 'error' || st.state === 'canceled') throw new Error(st.error || '中止しました');
+        if (!st.pages){ dwProgress(title, 0, '準備中…'); continue; }
+        const rest = st.page > 0 ? Math.round(st.seconds * (st.pages - st.page) / st.page) : null;
+        dwProgress(title, st.page / st.pages, `${st.page} / ${st.pages} ページ` + (prefs.mode === 'auto' ? `（うちカラー ${st.colorPages}）` : '') + (rest != null ? `　残り約 ${dwFmtSec(rest)}` : ''));
+      }
+      dwProgress(title, 1, `PDF を受け取っています…（${(st.size/1048576).toFixed(1)} MB）`);
+      const blob = await (await fetch(`${DW.url}/result?id=${j.id}`)).blob();
+      out.push(new File([blob], f.name.replace(/\.(xdw|xbd)$/i, '') + '.pdf', {type:'application/pdf'}));
+      toast(`${f.name}：${st.pages} ページを ${dwFmtSec(st.seconds)} で PDF にしました（${(st.size/1048576).toFixed(1)} MB）`, 5000);
+    }
+    return out;
+  } catch(err){
+    const lost = err instanceof TypeError;
+    alert('DocuWorks を PDF にできませんでした: ' + (lost ? '変換ツールとの接続が切れました。もう一度試してください。' : err.message));
+    return null;
+  } finally { $('#dwBusy').classList.remove('show'); DW.job = null; }
+}
+async function dwConvertAndSave(files){
+  if (!(await dwPing(true))){ showDocuWorks(); return; }
+  let dir = null;
+  if (files.length > 1 && window.showDirectoryPicker){ try { dir = await showDirectoryPicker({mode:'readwrite'}); } catch(err){ if (err.name === 'AbortError') return; } }
+  const pdfs = await dwConvert(files, dwPrefs());
+  if (!pdfs) return;
+  for (const f of pdfs){
+    if (dir){ const fh = await dir.getFileHandle(f.name, {create:true}); const w = await fh.createWritable(); await w.write(f); await w.close(); }
+    else if (pdfs.length === 1){ const saved = await saveBlob(f.name, async () => f); if (saved) toast('保存しました: ' + saved, 4000); }
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); await dwSleep(400); }
+  }
+  if (dir) toast(`${pdfs.length} 件の PDF を保存しました`, 4000);
+}
 async function exportedSource(pages){
   const blob = await exportPDF(pages, {});
   const data = new Uint8Array(await blob.arrayBuffer());
