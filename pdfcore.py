@@ -4,9 +4,11 @@
 worker.js から呼ばれ、PyMuPDF でページ描画・文字抽出・PDF書き出しを行う。
 ファイルはすべてブラウザの中で処理し、外部には送らない。
 """
+import contextlib
 import json
 import math
 import os
+import re
 import uuid
 
 import pymupdf
@@ -41,6 +43,44 @@ def font_args(key):
 
 
 _FONT_OBJ = {}
+FONT_XREF = {}   # 書き出し中の文書に埋め込んだフォント（名前 → xref）。2ページ目からは参照だけ足す
+
+
+def _add_font_ref(page, name, xref):
+    """ページの /Resources/Font に既存フォントへの参照を足す（フォントを再び埋め込まない）。"""
+    doc = page.parent
+    t, v = doc.xref_get_key(page.xref, "Resources")
+    if t == "xref":
+        rx = int(v.split()[0])
+        t2, v2 = doc.xref_get_key(rx, "Font")
+        if t2 == "xref":
+            doc.xref_set_key(int(v2.split()[0]), name, f"{xref} 0 R")
+        else:
+            doc.xref_set_key(rx, "Font/" + name, f"{xref} 0 R")
+    elif t == "dict":
+        t2, v2 = doc.xref_get_key(page.xref, "Resources/Font")
+        if t2 == "xref":
+            doc.xref_set_key(int(v2.split()[0]), name, f"{xref} 0 R")
+        else:
+            doc.xref_set_key(page.xref, "Resources/Font/" + name, f"{xref} 0 R")
+    else:
+        return False   # 継承された Resources など。安全のため通常の埋め込みにする
+    return True
+
+
+def page_font(page, key):
+    """insert_text に渡すフォント指定。同じ文書では1回だけ埋め込み、他のページは参照する。"""
+    if key in BASE14:
+        return {"fontname": BASE14[key]}
+    key = key if key in FONTS else "gothic"
+    name = "F" + key.replace("-", "") + RUN["tag"]
+    if any(f[4] == name for f in page.get_fonts()):
+        return {"fontname": name}
+    k = (id(page.parent), name)
+    if k in FONT_XREF and _add_font_ref(page, name, FONT_XREF[k]):
+        return {"fontname": name}
+    FONT_XREF[k] = page.insert_font(fontname=name, fontfile=FONT_DIR + "/" + FONTS[key])
+    return {"fontname": name}
 
 
 def text_width(text, key, size):
@@ -66,35 +106,145 @@ def hex2rgb(h, default=(0, 0, 0)):
 OTHER_TYPES = {"svg", "xps", "oxps", "epub", "cbz", "fb2", "txt", "mobi"}
 
 
-def add_source(data, name):
-    """PDF・画像・その他文書のバイト列を登録し、ページ情報を返す。"""
+def add_source(data, name, path=None):
+    """PDF・画像・その他文書を登録し、ページ情報を返す。
+
+    path を渡すと仮想ファイル（ブラウザ側のメモリ）から開くので、巨大なPDFでも
+    Python 側のメモリに丸ごと複製しない。
+    """
     ext = os.path.splitext(name)[1].lower().lstrip(".")
-    if b"%PDF" in data[:1024]:
-        doc = pymupdf.open(stream=data, filetype="pdf")
+    head = data[:1024] if data is not None else open(path, "rb").read(1024)
+    if b"%PDF" in head:
+        doc = pymupdf.open(path) if path else pymupdf.open(stream=data, filetype="pdf")
         if doc.needs_pass:
             raise ValueError("パスワード付きPDFは開けません（パスワードを解除してから開いてください）")
     else:
         # 画像（複数ページTIFFも可）・SVG・XPS・テキスト等 → PDFに変換
-        src = pymupdf.open(stream=data, filetype=ext if ext in OTHER_TYPES else None)
+        ft = ext if ext in OTHER_TYPES else None
+        src = pymupdf.open(path, filetype=ft) if path else pymupdf.open(stream=data, filetype=ft)
         doc = pymupdf.open("pdf", src.convert_to_pdf())
     sid = uuid.uuid4().hex[:12]
     SOURCES[sid] = doc
     pages = []
     for p in doc:
-        pages.append({"src": sid, "index": p.number,
-                      "w": p.rect.width, "h": p.rect.height,  # 回転反映後の見た目サイズ
-                      "rot": p.rotation})
+        info = {"src": sid, "index": p.number,
+                "w": p.rect.width, "h": p.rect.height,  # 回転反映後の見た目サイズ
+                "rot": p.rotation}
+        if doc.is_pdf and p.first_annot:
+            anns = import_annots(p)
+            if anns:
+                info["anns"] = anns
+        pages.append(info)
     return {"id": sid, "name": name, "pages": pages}
 
 
-def page_for_render(src, index, extra_rot):
-    """描画用：元ページを一時文書にコピーして回転を合成。"""
+def _hex(c):
+    if not c:
+        return ""
+    if len(c) == 1:
+        c = (c[0], c[0], c[0])
+    return "#%02x%02x%02x" % tuple(max(0, min(255, round(v * 255))) for v in c[:3])
+
+
+def _da(doc, xref):
+    """FreeText の /DA から文字サイズと色。"""
+    try:
+        da = doc.xref_get_key(xref, "DA")[1]
+    except Exception:
+        da = ""
+    m = re.search(r"([\d.]+)\s+Tf", da)
+    size = float(m.group(1)) if m else 12.0
+    col = "#000000"
+    m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da)
+    if m:
+        col = _hex([float(v) for v in m.groups()])
+    else:
+        m = re.search(r"([\d.]+)\s+g\b", da)
+        if m:
+            col = _hex([float(m.group(1))])
+    return size or 12.0, col
+
+
+IMPORT_TYPES = {pymupdf.PDF_ANNOT_FREE_TEXT, pymupdf.PDF_ANNOT_SQUARE, pymupdf.PDF_ANNOT_CIRCLE,
+                pymupdf.PDF_ANNOT_LINE, pymupdf.PDF_ANNOT_INK, pymupdf.PDF_ANNOT_HIGHLIGHT}
+
+
+def import_annots(page):
+    """Acrobat などで付けた注釈（文字・四角・円・線・手書き・マーカー）を編集できる形に取り込み、
+    元の注釈はページから外す（保存時に取り込んだものを書き直すので二重にならない）。"""
+    m = page.rotation_matrix
+    out, done = [], []
+    for a in page.annots():
+        t = a.type[0]
+        if t not in IMPORT_TYPES:
+            continue
+        stroke = _hex((a.colors or {}).get("stroke"))
+        fill = _hex((a.colors or {}).get("fill"))
+        bw = float((a.border or {}).get("width", 1) or 1)
+        if bw < 0:
+            bw = 1.0
+        r = a.rect * m
+        o = None
+        if t == pymupdf.PDF_ANNOT_FREE_TEXT:
+            size, col = _da(page.parent, a.xref)
+            fill = fill or stroke   # FreeText は /C が背景色
+            text = (a.info or {}).get("content", "")
+            if text.strip():
+                o = {"type": "text", "text": text, "font": "gothic", "size": round(size, 1), "color": col,
+                     "x": r.x0 + 2, "y": r.y0 + 1}
+                if fill:
+                    o.update(type="note", fill=fill, w=r.width, h=r.height, x=r.x0, y=r.y0)
+        elif t in (pymupdf.PDF_ANNOT_SQUARE, pymupdf.PDF_ANNOT_CIRCLE):
+            rr = pymupdf.Rect(r.x0 + bw / 2, r.y0 + bw / 2, r.x1 - bw / 2, r.y1 - bw / 2)
+            o = {"type": "rect" if t == pymupdf.PDF_ANNOT_SQUARE else "ellipse", "x": rr.x0, "y": rr.y0,
+                 "w": rr.width, "h": rr.height, "color": stroke or "#e00000", "width": bw, "fill": fill}
+        elif t == pymupdf.PDF_ANNOT_LINE:
+            v = [pymupdf.Point(p) * m for p in (a.vertices or [])]
+            if len(v) >= 2:
+                ends = a.line_ends or (0, 0)
+                p1, p2 = v[0], v[-1]
+                arrow = bool(ends[1]) or bool(ends[0])
+                if ends[0] and not ends[1]:
+                    p1, p2 = p2, p1
+                o = {"type": "arrow" if arrow else "line", "x1": p1.x, "y1": p1.y, "x2": p2.x, "y2": p2.y,
+                     "color": stroke or "#e00000", "width": bw}
+        elif t == pymupdf.PDF_ANNOT_INK:
+            for stroke_pts in (a.vertices or []):
+                pts = [list(pymupdf.Point(p) * m) for p in stroke_pts]
+                if len(pts) >= 2:
+                    out.append({"type": "ink", "points": pts, "color": stroke or "#0033cc", "width": bw})
+            done.append(a)
+            continue
+        elif t == pymupdf.PDF_ANNOT_HIGHLIGHT:
+            v = [pymupdf.Point(p) * m for p in (a.vertices or [])]
+            for i in range(0, len(v) - 3, 4):
+                q = pymupdf.Rect(v[i], v[i]) | v[i + 1] | v[i + 2] | v[i + 3]
+                out.append({"type": "highlight", "x": q.x0, "y": q.y0, "w": q.width, "h": q.height,
+                            "color": stroke or "#ffe600", "opacity": 0.35})
+            done.append(a)
+            continue
+        if o:
+            out.append(o)
+            done.append(a)
+    for a in done:
+        page.delete_annot(a)
+    return out
+
+
+@contextlib.contextmanager
+def rotated(src, index, extra):
+    """元ページを一時的に回転させて使う（ページを複製しないので速い）。"""
     doc = SOURCES[src]
-    tmp = pymupdf.open()
-    tmp.insert_pdf(doc, from_page=index, to_page=index)
-    p = tmp[0]
-    p.set_rotation((p.rotation + extra_rot) % 360)
-    return tmp, p
+    p = doc[int(index)]
+    r0 = p.rotation
+    extra = int(extra or 0) % 360
+    if extra:
+        p.set_rotation((r0 + extra) % 360)
+    try:
+        yield p
+    finally:
+        if extra:
+            p.set_rotation(r0)
 
 
 def render_png(q):
@@ -107,9 +257,10 @@ def render_png(q):
         tmp = pymupdf.open()
         p = tmp.new_page(width=w, height=h)
         p.set_rotation(rot % 360)
-    else:
-        tmp, p = page_for_render(src, int(q["index"]), rot)
-    pix = p.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        pix = p.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        return pix.tobytes("png")
+    with rotated(src, q["index"], rot) as p:
+        pix = p.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
     return pix.tobytes("png")
 
 
@@ -118,10 +269,10 @@ def page_spans(q):
     src = q["src"]
     if src == "blank":
         return []
-    tmp, p = page_for_render(src, int(q["index"]), int(q.get("rot", 0)))
-    rot_m = p.rotation_matrix
+    with rotated(src, q["index"], q.get("rot", 0)) as p:
+        rot_m = p.rotation_matrix
+        d = p.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)
     out = []
-    d = p.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)
     for b in d["blocks"]:
         for line in b.get("lines", []):
             spans = [s for s in line["spans"] if s["text"].strip()]
@@ -150,7 +301,7 @@ def page_spans(q):
 def draw_text(page, ann, derot):
     size = float(ann.get("size", 12))
     color = hex2rgb(ann.get("color"))
-    fa = font_args(ann.get("font", "gothic"))
+    fa = page_font(page, ann.get("font", "gothic"))
     lh = float(ann.get("lineHeight", 1.25))
     base = float(ann.get("baseline", 0.95))  # 画面で実測した「行の上端→基準線」の比
     pad = float(ann.get("pad", 0))
@@ -196,19 +347,113 @@ def draw_seal(page, a, derot):
     for dy in (-band, band):
         page.draw_line(pymupdf.Point(cx - hw, cy + dy) * derot, pymupdf.Point(cx + hw, cy + dy) * derot,
                        color=col, width=lw * 0.8)
-    fa = font_args(a.get("font", "gothic"))
+    fa = page_font(page, a.get("font", "gothic"))
     for text, size, base in texts:
         x = cx - text_width(text, a.get("font", "gothic"), size) / 2
         page.insert_text(pymupdf.Point(x, base) * derot, text, fontsize=size, color=col,
                          rotate=page.rotation, **fa)
 
 
+def draw_measure(page, a, derot):
+    """計測（距離・面積）：線と数値を書き込む。数値と位置は画面側で計算済み。"""
+    col = hex2rgb(a.get("color"), (0, 0.4, 0.8))
+    w = float(a.get("width", 1))
+    if a["type"] == "dim":
+        p1, p2 = pymupdf.Point(a["x1"], a["y1"]), pymupdf.Point(a["x2"], a["y2"])
+        page.draw_line(p1 * derot, p2 * derot, color=col, width=w)
+        L = math.hypot(p2.x - p1.x, p2.y - p1.y) or 1
+        nx, ny = -(p2.y - p1.y) / L * 4, (p2.x - p1.x) / L * 4   # 両端の短い目印
+        for q in (p1, p2):
+            page.draw_line(pymupdf.Point(q.x - nx, q.y - ny) * derot, pymupdf.Point(q.x + nx, q.y + ny) * derot,
+                           color=col, width=w)
+    else:
+        pts = [pymupdf.Point(x, y) * derot for x, y in a["points"]]
+        if len(pts) >= 3:
+            page.draw_polyline(pts, color=col, fill=hex2rgb(a.get("fill"), col), width=w, closePath=True,
+                               fill_opacity=0.15)
+    label = a.get("label")
+    if label:
+        size = float(a.get("size", 9))
+        font = "gothic"
+        x = float(a["lx"]) - text_width(label, font, size) / 2
+        page.insert_text(pymupdf.Point(x, float(a["ly"])) * derot, label, fontsize=size, color=col,
+                         rotate=page.rotation, **page_font(page, font))
+
+
+def draw_ocr(page, lines):
+    """文字認識（OCR）の結果を見えない文字として重ねる（検索・コピーできるPDFになる）。"""
+    derot = page.derotation_matrix
+    fa = page_font(page, "gothic")
+    vertical = page.rotation in (90, 270)
+    for ln in lines:
+        x0, y0, x1, y1 = ln["r"]
+        text = ln["t"]
+        h = y1 - y0
+        if not text.strip() or h <= 0 or x1 <= x0:
+            continue
+        size = max(3.0, h * 0.85)
+        tw = text_width(text, "gothic", size) or 1
+        sx = (x1 - x0) / tw
+        pt = pymupdf.Point(x0, y1 - h * 0.15) * derot
+        mat = pymupdf.Matrix(1, sx) if vertical else pymupdf.Matrix(sx, 1)
+        page.insert_text(pt, text, fontsize=size, render_mode=3, rotate=page.rotation, morph=(pt, mat), **fa)
+
+
 def vrect(a, derot):
     return pymupdf.Rect(a["x"], a["y"], a["x"] + a["w"], a["y"] + a["h"]) * derot
 
 
-def apply_annotations(page, anns):
+# 「注釈として保存」で PDF 注釈にする種類（Acrobat・PDF-XChange で後から移動・修正・削除できる）
+NATIVE = {"text", "note", "rect", "ellipse", "line", "arrow", "ink", "highlight"}
+
+
+def add_native(page, a, derot):
+    t = a["type"]
+    col = hex2rgb(a.get("color"), (1, 0, 0))
+    w = float(a.get("width", 2))
+    if t in ("text", "note"):
+        size = float(a.get("size", 12))
+        lines = str(a.get("text", "")).split("\n")
+        bw = float(a.get("bw") or max(len(l) for l in lines) * size)
+        bh = float(a.get("bh") or len(lines) * size * 1.25)
+        pad = float(a.get("pad", 0))
+        r = pymupdf.Rect(a["x"], a["y"], a["x"] + bw * 1.06 + 4 + 2 * pad, a["y"] + bh + 4 + 2 * pad) * derot
+        kw = dict(fontsize=size, fontname="japan", text_color=hex2rgb(a.get("color")), rotate=page.rotation)
+        if t == "note":
+            kw.update(fill_color=hex2rgb(a.get("fill"), (1, 0.96, 0.6)))
+        an = page.add_freetext_annot(r, str(a.get("text", "")), **kw)
+    elif t in ("rect", "ellipse"):
+        r = pymupdf.Rect(a["x"], a["y"], a["x"] + a["w"], a["y"] + a["h"]) * derot
+        an = page.add_rect_annot(r) if t == "rect" else page.add_circle_annot(r)
+        an.set_colors(stroke=col, fill=hex2rgb(a["fill"]) if a.get("fill") else None)
+        an.set_border(width=w)
+    elif t in ("line", "arrow"):
+        an = page.add_line_annot(pymupdf.Point(a["x1"], a["y1"]) * derot, pymupdf.Point(a["x2"], a["y2"]) * derot)
+        if t == "arrow":
+            an.set_line_ends(pymupdf.PDF_ANNOT_LE_NONE, pymupdf.PDF_ANNOT_LE_OPEN_ARROW)
+        an.set_colors(stroke=col)
+        an.set_border(width=w)
+    elif t == "ink":
+        an = page.add_ink_annot([[tuple(pymupdf.Point(x, y) * derot) for x, y in a["points"]]])
+        an.set_colors(stroke=hex2rgb(a.get("color"), (0, 0, 1)))
+        an.set_border(width=w)
+    elif t == "highlight":
+        r = pymupdf.Rect(a["x"], a["y"], a["x"] + a["w"], a["y"] + a["h"]) * derot
+        an = page.add_highlight_annot(r)
+        an.set_colors(stroke=hex2rgb(a.get("color"), (1, 1, 0)))
+    else:
+        return
+    an.set_info(title="PDF編集ソフト")
+    an.update()
+
+
+def apply_annotations(page, anns, native=False):
     derot = page.derotation_matrix
+    if native:
+        for a in anns:
+            if a["type"] in NATIVE:
+                add_native(page, a, derot)
+        anns = [a for a in anns if a["type"] not in NATIVE]
     # 1) 既存テキストの置換：先に墨消し（文字だけ除去）
     redacts = [a for a in anns if a["type"] == "edittext"]
     if redacts:
@@ -237,6 +482,8 @@ def apply_annotations(page, anns):
             draw_text(page, a, derot)
         elif t == "dateseal":
             draw_seal(page, a, derot)
+        elif t in ("dim", "area"):
+            draw_measure(page, a, derot)
         elif t == "whiteout":
             page.draw_rect(vrect(a, derot), color=None, fill=hex2rgb(a.get("fill"), (1, 1, 1)))
         elif t == "rect":
@@ -323,12 +570,12 @@ def stamp_all(out, opts):
             font = mk.get("font", "gothic")
             x, y = mark_pos(mk, W, H, text_width(txt, font, size))
             page.insert_text(pymupdf.Point(x, y) * derot, txt, fontsize=size, rotate=page.rotation,
-                             color=hex2rgb(mk.get("color")), **font_args(font))
+                             color=hex2rgb(mk.get("color")), **page_font(page, font))
         if wm and wm.get("enabled") and wm.get("text"):
             size = float(wm.get("size", 60))
             txt = wm["text"]
             col = hex2rgb(wm.get("color"), (0.6, 0.6, 0.6))
-            fa = font_args(wm.get("font", "gothic"))
+            fa = page_font(page, wm.get("font", "gothic"))
             # 中央に斜め45°で配置（Shape + morph で回転）
             tl = len(txt) * size
             cx, cy = W / 2, H / 2
@@ -343,24 +590,40 @@ def stamp_all(out, opts):
             sh.commit(overlay=True)
 
 
-def build_pdf(spec):
+def build_pdf(spec, path=None):
     RUN["tag"] = uuid.uuid4().hex[:6]
-    out = pymupdf.open()
-    for pg in spec["pages"]:
-        src = pg["src"]
-        rot = int(pg.get("rot", 0))
-        if src == "blank":
-            p = out.new_page(width=float(pg.get("w", 595)), height=float(pg.get("h", 842)))
-            p.set_rotation(rot % 360)
-        else:
-            doc = SOURCES[src]
-            out.insert_pdf(doc, from_page=pg["index"], to_page=pg["index"])
-            p = out[-1]
-            p.set_rotation((p.rotation + rot) % 360)
-        p = out[-1]
-        if pg.get("annotations"):
-            apply_annotations(p, pg["annotations"])
+    FONT_XREF.clear()
     opts = spec.get("options", {})
+    native = opts.get("annotMode") == "annot"
+    out = pymupdf.open()
+    pages = spec["pages"]
+    # 同じ元ファイルの連続したページはまとめて取り込む（大きな文書で速い）
+    i = 0
+    while i < len(pages):
+        pg = pages[i]
+        if pg["src"] == "blank":
+            p = out.new_page(width=float(pg.get("w", 595)), height=float(pg.get("h", 842)))
+            p.set_rotation(int(pg.get("rot", 0)) % 360)
+            i += 1
+            continue
+        j = i
+        while (j + 1 < len(pages) and pages[j + 1]["src"] == pg["src"]
+               and int(pages[j + 1]["index"]) == int(pages[j]["index"]) + 1):
+            j += 1
+        out.insert_pdf(SOURCES[pg["src"]], from_page=int(pg["index"]), to_page=int(pages[j]["index"]))
+        i = j + 1
+    for k, pg in enumerate(pages):
+        rot = int(pg.get("rot", 0)) % 360
+        if not rot and not pg.get("annotations"):
+            continue
+        p = out[k]
+        if rot and pg["src"] != "blank":
+            p.set_rotation((p.rotation + rot) % 360)
+        if pg.get("annotations"):
+            apply_annotations(p, pg["annotations"], native)
+    for k, pg in enumerate(pages):
+        if pg.get("ocr"):
+            draw_ocr(out[k], pg["ocr"])
     if opts.get("paper") in PAPER:
         out = fit_paper(out, opts["paper"])
         RUN["tag"] = uuid.uuid4().hex[:6]  # 縮小前に埋め込んだフォントと名前を分ける
@@ -375,17 +638,23 @@ def build_pdf(spec):
         m = out.metadata or {}
         m.update({k: v for k, v in meta.items() if v})
         out.set_metadata(m)
-    try:
-        out.subset_fonts()
-    except Exception:
-        pass
-    kw = dict(garbage=4, deflate=True, clean=bool(opts.get("compress")))
+    if fonts_needed(spec):
+        try:
+            out.subset_fonts()
+        except Exception:
+            pass
+    big = len(out) > 300
+    kw = dict(garbage=1 if big else 3, deflate=True, clean=bool(opts.get("compress")))
     if opts.get("compress"):
-        kw.update(deflate_images=True, deflate_fonts=True)
+        kw.update(garbage=3, deflate_images=True, deflate_fonts=True)
     pw = opts.get("password")
     if pw:
         kw.update(encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw=pw, owner_pw=pw,
                   permissions=-1)
+    if path:
+        out.save(path, **kw)   # 仮想ファイルへ（巨大PDFでも Python 側のメモリを使い切らない）
+        out.close()
+        return path
     return out.tobytes(**kw)
 
 
@@ -403,6 +672,10 @@ def fonts_needed(spec):
         for a in pg.get("annotations") or []:
             if a.get("type") in ("text", "edittext", "stamp", "note", "dateseal"):
                 keys.add(a.get("font", "gothic"))
+            if a.get("type") in ("dim", "area") and a.get("label"):
+                keys.add("gothic")
+    if any(pg.get("ocr") for pg in spec["pages"]):
+        keys.add("gothic")
     o = spec.get("options") or {}
     for marks in o.get("marks") or []:
         for mk in marks or []:
@@ -419,6 +692,40 @@ def _bytes(data):
 
 def api_open(data, name):
     return json.dumps(add_source(_bytes(data), name), ensure_ascii=False)
+
+
+def api_open_path(path, name):
+    return json.dumps(add_source(None, name, path), ensure_ascii=False)
+
+
+def api_export_file(spec, path):
+    return build_pdf(json.loads(spec), path)
+
+
+def api_search(q):
+    """文字検索：ページごとの一致箇所（見た目の座標）。"""
+    q = json.loads(q)
+    needle = q["q"]
+    res = []
+    for k, it in enumerate(q["items"]):
+        if it["src"] == "blank":
+            continue
+        with rotated(it["src"], it["index"], it.get("rot", 0)) as p:
+            m = p.rotation_matrix
+            rects = [r * m for r in p.search_for(needle)]
+        if rects:
+            res.append({"k": k, "rects": [[r.x0, r.y0, r.x1, r.y1] for r in rects]})
+    return json.dumps(res)
+
+
+def api_textin(q):
+    """範囲内の文字を取り出す（文字選択ツール）。"""
+    q = json.loads(q)
+    if q["src"] == "blank":
+        return ""
+    with rotated(q["src"], q["index"], q.get("rot", 0)) as p:
+        r = pymupdf.Rect(q["rect"]) * p.derotation_matrix
+        return p.get_textbox(r).strip()
 
 
 def api_image(data):
@@ -462,3 +769,15 @@ def api_text(src):
 
 def api_close(src):
     SOURCES.pop(src, None)
+
+
+def api_hastext(q):
+    """ページに文字データがあるか（OCR が必要かの判定）。"""
+    out = []
+    for it in json.loads(q)["items"]:
+        if it["src"] == "blank":
+            out.append(True)
+            continue
+        p = SOURCES[it["src"]][int(it["index"])]
+        out.append(bool(p.get_text("text").strip()))
+    return json.dumps(out)

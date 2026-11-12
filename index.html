@@ -112,6 +112,30 @@ dialog.wide{width:min(800px,96vw)}
 dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}
 #busy{position:fixed;inset:0;background:rgba(255,255,255,.5);display:none;align-items:center;justify-content:center;z-index:90;font-size:15px}
 #busy.show{display:flex}
+.hit{position:absolute;background:rgba(255,200,0,.35);outline:1px solid rgba(230,150,0,.8);pointer-events:none}
+.hit.cur{background:rgba(255,120,0,.45);outline:2px solid #e65100}
+#findBar{position:fixed;top:90px;right:260px;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:6px 8px;display:none;align-items:center;gap:4px}
+#findBar.show{display:flex}
+#findBar input{width:220px;padding:4px 6px}
+#findBar button{border:1px solid var(--line);background:#fff;border-radius:4px;cursor:pointer;padding:2px 8px}
+#findCnt{color:var(--muted);font-size:12px;min-width:70px;text-align:center}
+#stNav{display:flex;align-items:center;gap:3px}
+#stNav input{width:56px;padding:0 4px;font-size:12px}
+#stNav button{border:none;background:none;cursor:pointer;color:var(--muted);padding:0 4px}
+#viewer.pan, #viewer.pan *{cursor:grab !important}
+#viewer.panning, #viewer.panning *{cursor:grabbing !important}
+.tool-textsel .layer,.tool-dim .layer,.tool-area .layer{cursor:crosshair}
+.ann.dim, .ann.area{cursor:move}
+.ann.dim svg, .ann.area svg{overflow:visible}
+#cmp{position:fixed;inset:0;z-index:80;background:#3a3f45;display:none;flex-direction:column}
+#cmp.show{display:flex}
+#cmpBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+#cmpBar button,#cmpBar select{border:1px solid var(--line);background:#fff;border-radius:5px;padding:3px 10px;cursor:pointer}
+#cmpBar .lg{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+#cmpBar .lg i{display:inline-block;width:12px;height:12px;border-radius:2px}
+#cmpBody{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:16px}
+#cmpBody canvas{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#cmpMsg{color:var(--muted);font-size:12px}
 #dwBusy{position:fixed;inset:0;background:rgba(255,255,255,.6);display:none;align-items:center;justify-content:center;z-index:95}
 #dwBusy.show{display:flex}
 #dwBusy .box{background:#fff;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:16px 20px;width:min(440px,92vw)}
@@ -134,10 +158,13 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
     <div class="grp">
       <button class="tb" id="bOpen" title="PDFを開く (Ctrl+O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>開く</button>
       <button class="tb" id="bInsert" title="PDF・画像・空白ページを追加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M12 11v6M9 14h6"/></svg>ページ追加 ▾</button>
-      <button class="tb primary" id="bSave" title="名前を付けて保存 (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>保存</button>
+      <button class="tb primary" id="bSave" title="名前を付けて保存 (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg><span id="bSaveLbl">保存</span></button>
+      <button class="tb" id="bSaveAs" title="名前を付けて保存（Ctrl+Shift+S）。ページ番号・透かし・パスワードなどもここで">名前を付けて保存</button>
       <button class="tb" id="bPrint" title="印刷 (Ctrl+P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>印刷</button>
       <button class="tb" id="bSplit" title="ページを分割・抽出して保存">分割・抽出</button>
       <button class="tb" id="bConvert" title="画像・テキストへの変換など">変換 ▾</button>
+      <button class="tb" id="bCompare" title="2つのPDF（図面の改訂前後など）の違いを色分けして表示">比較</button>
+      <button class="tb" id="bFind" title="文字を検索 (Ctrl+F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>検索</button>
     </div>
     <div class="grp">
       <button class="tb accent" id="bNumber" title="ページ番号・ヘッダー/フッターを一括で付ける"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M10 17h4M12 13v4"/></svg>ページ番号</button>
@@ -148,6 +175,7 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
     </div>
     <div class="grp" id="tools">
       <button class="tb on" data-tool="select" title="選択・移動 (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 3 7 17 2-7 7-2z"/></svg>選択</button>
+      <button class="tb" data-tool="textsel" title="文字を囲んでコピー (C)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"/><path d="M9 9h6M12 9v7"/></svg>文字コピー</button>
       <button class="tb" data-tool="text" title="文字を追加 (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14M9 19h6"/></svg>文字追加</button>
       <button class="tb" data-tool="edittext" title="既存の文字を書き換え (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></svg>文字修正</button>
       <button class="tb" data-tool="whiteout" title="白塗り（修正テープ） (W)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="1"/><path d="M7 7v10" stroke-dasharray="2 2"/></svg>白塗り</button>
@@ -157,6 +185,8 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
       <button class="tb" data-tool="ellipse" title="楕円 (O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
       <button class="tb" data-tool="line" title="線 (L)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5"/></svg></button>
       <button class="tb" data-tool="arrow" title="矢印 (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5M10 5h9v9"/></svg></button>
+      <button class="tb" data-tool="dim" title="距離を測る (M)。縮尺は右の欄で設定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 17 3M3 13v8h8M13 3h8v8"/></svg>距離</button>
+      <button class="tb" data-tool="area" title="面積を測る (G)。クリックで頂点、ダブルクリックで確定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18 8 5l12 4-4 11z"/></svg>面積</button>
       <button class="tb" data-tool="ink" title="手書き (P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-9 7-7s-2 6 1 7 5-6 7-8 3 0 3 0"/></svg>手書き</button>
       <button class="tb" data-tool="note" title="付箋 (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5"/></svg>付箋</button>
       <button class="tb" id="bSeal" title="日付印（部署・日付・名前の丸印）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M4.5 9.5h15M4.5 14.5h15"/></svg>日付印</button>
@@ -199,13 +229,23 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
 
   <div id="props"></div>
 
-  <div id="status"><span id="stFile">ファイルなし</span><span id="stPage"></span><span id="stMsg"></span></div>
+  <div id="status"><span id="stFile">ファイルなし</span><span id="stNav"><button id="navFirst" title="最初のページ (Home)">⏮</button><button id="navPrev" title="前のページ (PageUp)">◀</button><input id="navPage" type="number" min="1"> / <span id="navTotal">0</span><button id="navNext" title="次のページ (PageDown)">▶</button><button id="navLast" title="最後のページ (End)">⏭</button></span><span id="stPage"></span><span id="stMsg"></span></div>
+  <div id="findBar"><input id="findQ" placeholder="文字を検索（Enter で次へ）"><span id="findCnt"></span><button id="findPrev" title="前 (Shift+Enter)">▲</button><button id="findNext" title="次 (Enter)">▼</button><button id="findClose" title="閉じる (Esc)">×</button></div>
+  <div id="cmp"><div id="cmpBar"><b id="cmpTitle">比較</b>
+    <button id="cmpPrev">◀</button><span id="cmpPage"></span><button id="cmpNext">▶</button>
+    <button id="cmpNextDiff" title="違いのある次のページへ">違いのある次のページ ▶</button>
+    <select id="cmpView"><option value="diff">違いを色分け</option><option value="new">新しい方だけ</option><option value="old">古い方だけ</option></select>
+    <button id="cmpZoomOut">－</button><button id="cmpZoomIn">＋</button>
+    <span class="lg"><i style="background:#e53935"></i>新しい方だけにある</span><span class="lg"><i style="background:#1e88e5"></i>古い方だけにある</span><span class="lg"><i style="background:#bbb"></i>同じ</span>
+    <span id="cmpMsg"></span><span style="flex:1"></span><button id="cmpClose">閉じる</button></div>
+    <div id="cmpBody"><canvas id="cmpCv"></canvas></div></div>
 </div>
 
 <input type="file" id="fOpen" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff,.xdw,.xbd" multiple hidden>
 <input type="file" id="fInsert" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff,.xdw,.xbd" multiple hidden>
 <input type="file" id="fReplace" accept=".pdf,application/pdf,image/*,.svg,.xps,.oxps,.txt,.epub,.tif,.tiff" multiple hidden>
 <input type="file" id="fImage" accept="image/*" hidden>
+<input type="file" id="fCompare" accept=".pdf,application/pdf" hidden>
 
 <dialog id="dSave"><form method="dialog">
   <h2>名前を付けて保存</h2>
@@ -222,6 +262,10 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
       <label>濃さ</label><input type="range" id="wmOpacity" min="5" max="100" value="25"></div>
   </fieldset>
   <fieldset><legend>オプション</legend>
+    <div class="r"><label>書き込み</label>
+      <label><input type="radio" name="sAnnot" value="annot"> 注釈として保存（Acrobat・PDF-XChange でも後から移動・修正・削除できる）</label>
+      <label><input type="radio" name="sAnnot" value="flat"> 固定する（どのソフトでも同じ見た目・修正できない）</label></div>
+    <div class="note2" style="margin:0 0 6px 88px">注釈で保存した文字・四角・線・手書き・マーカー・付箋は、このソフトで開き直しても編集できます。白塗り・墨消し・文字修正・ページ番号・日付印・スタンプ・画像・計測はいつも固定です。</div>
     <div class="r"><label><input type="checkbox" id="sCompress"> ファイルサイズを小さくする（圧縮）</label></div>
     <div class="r"><label><input type="checkbox" id="pwOn"> パスワードを設定</label><input type="password" id="pwVal" placeholder="開くときのパスワード"></div>
   </fieldset>
@@ -291,6 +335,18 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
 <input type="file" id="fDW" accept=".xdw,.xbd" multiple hidden>
 <div id="dwBusy"><div class="box"><div class="t" id="dwbTitle"></div><div class="bar"><i id="dwbBar"></i></div><div class="m" id="dwbMsg"></div><div class="btns"><button type="button" id="dwbCancel">中止</button></div></div></div>
 
+<dialog id="dOcr"><form method="dialog">
+  <h2>文字認識（OCR）</h2>
+  <p class="note2">スキャンや DocuWorks から変換したPDFのような「画像だけのページ」の文字を読み取ります。読み取ると、このソフトで検索・文字コピーができ、保存したPDFは Acrobat などでも検索できるようになります（見た目は変わりません）。</p>
+  <div class="r"><label>対象</label>
+    <label><input type="radio" name="ocrRange" value="cur" checked> いまのページ</label>
+    <label><input type="radio" name="ocrRange" value="sel"> 選択中のページ</label>
+    <label><input type="radio" name="ocrRange" value="all"> 文字のない全ページ</label></div>
+  <div class="r"><label>精度</label><select id="ocrDpi"><option value="200">標準（速い）</option><option value="300" selected>高い（小さい文字・数字向け）</option></select></div>
+  <p class="note2">1ページ数秒かかります（初回は読み取り用データ約10MBの取得で少し待ちます）。文字データがすでにあるページは飛ばします。読み取りは完全ではないので、数値の確認には元の画像を見てください。</p>
+  <div class="btns"><button value="cancel">キャンセル</button><button class="ok" value="ok" id="ocrGo">読み取る</button></div>
+</form></dialog>
+
 <dialog id="dConv"><form method="dialog">
   <h2>画像に変換</h2>
   <div class="r"><label>形式</label><select id="cvFmt"><option value="png">PNG（きれい・大きめ）</option><option value="jpg">JPEG（小さめ）</option></select></div>
@@ -305,6 +361,7 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
 
 <script>
 'use strict';
+const APP_VER = '20261112';   // 更新したら変える（古い worker.js が使われないように）
 // ===== 状態 =====
 const FONTS = {
   'gothic':   {label:'ゴシック',       css:'"PE Gothic"', weight:400, web:true},
@@ -330,6 +387,8 @@ const S = {
     ink:      {color:'#0033cc', width:2},
     redact:   {fill:'#000000'},
     note:     {font:'gothic', size:10, color:'#000000', fill:'#fff59d'},
+    dim:      {color:'#0066cc', width:1, size:9},
+    area:     {color:'#0066cc', width:1, size:9, fill:'#0066cc'},
   },
 };
 const spanCache = new Map();
@@ -343,7 +402,7 @@ function busy(on){ $('#busy').classList.toggle('show', !!on); }
 const vis = p => (p.rot % 180) ? [p.bh, p.bw] : [p.bw, p.bh];
 const pageById = id => S.pages.find(p => p.id === id);
 // ===== PDF処理エンジン（ブラウザ内 Python のワーカー） =====
-const worker = new Worker('worker.js');
+const worker = new Worker('worker.js?v=' + APP_VER);
 const pending = new Map(); let reqId = 0;
 worker.onmessage = e => {
   const d = e.data;
@@ -382,6 +441,9 @@ function restore(json){ const o = JSON.parse(json); S.pages = o.pages; S.marks =
 function undo(){ if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); updateButtons(); }
 function redo(){ if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); updateButtons(); }
 function updateButtons(){
+  $('#bSaveLbl') && ($('#bSaveLbl').textContent = S.handle ? '上書き保存' : '保存');
+  $('#bSave') && ($('#bSave').title = S.handle ? `「${S.handle.name}」に上書き保存 (Ctrl+S)` : '名前を付けて保存 (Ctrl+S)');
+  $('#navTotal') && ($('#navTotal').textContent = S.pages.length);
   $('#bUndo').disabled = !S.undo.length; $('#bRedo').disabled = !S.redo.length;
   const has = S.pages.length > 0;
   for (const id of ['#bSave','#bSplit','#pRotL','#pRotR','#pDup','#pBlank','#pDel']) $(id).disabled = !has;
@@ -425,8 +487,7 @@ async function uploadFiles(files){
   busy(true);
   try {
     for (const f of files){
-      const data = new Uint8Array(await f.arrayBuffer());
-      res.push(await call('open', {data, name:f.name}, [data.buffer]));
+      res.push(await call('open', {file:f, name:f.name}));
     }
   } catch(e){ alert('読み込めませんでした: ' + e.message); }
   finally { busy(false); }
@@ -435,7 +496,7 @@ async function uploadFiles(files){
 function srcToPages(srcs){
   const out = [];
   for (const s of srcs) for (const pg of s.pages)
-    out.push({id:nid(), src:pg.src, index:pg.index, bw:pg.w, bh:pg.h, rot:0, anns:[], name:s.name});
+    out.push({id:nid(), src:pg.src, index:pg.index, bw:pg.w, bh:pg.h, rot:0, anns:(pg.anns || []).map(a => ({...a, id:nid()})), name:s.name});
   return out;
 }
 async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
@@ -454,9 +515,15 @@ async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
   if (!srcs.length) return;
   const np = srcToPages(srcs);
   if (mode === 'open'){
+    const old = new Set(S.pages.map(p => p.src)); old.delete('blank');
+    old.forEach(src => call('close', {src}).catch(() => {}));   // 前のファイルのメモリを空ける
+    S.handle = (files.length === 1 && openHandle) || null; openHandle = null;
+    clearFind();
     S.pages = np; S.undo = []; S.redo = []; S.dirty = false; S.sel = null;
     S.fileName = srcs.length === 1 ? srcs[0].name.replace(/\.[^.]+$/, '') + '.pdf' : '結合.pdf';
     S.selPages = new Set(); fitWidth(false);
+    const nAnn = np.reduce((n, p) => n + p.anns.length, 0);
+    if (nAnn) toast(`このPDFの注釈 ${nAnn} 件を編集できる状態で読み込みました`, 4000);
   } else {
     pushUndo();
     const at = (typeof mode === 'object' && mode.at != null) ? mode.at : insertIndexAfterSelection();
@@ -468,6 +535,7 @@ async function openFiles(files, mode){   // mode: 'open' | 'insert' | {at:index}
   renderAll();
   if (mode !== 'open') scrollToPage(np[0].id);
 }
+let openHandle = null;   // 開いたファイルの場所（上書き保存用）
 function insertIndexAfterSelection(){
   if (!S.selPages.size) return S.pages.length;
   let last = -1; S.pages.forEach((p,i) => { if (S.selPages.has(p.id)) last = i; });
@@ -523,7 +591,12 @@ function renderPages(){
 function pageEl(pid){ return pagesEl.querySelector(`.page[data-pid="${pid}"]`); }
 
 function annBox(a){
-  if (a.type === 'line' || a.type === 'arrow'){
+  if (a.type === 'area'){
+    const xs = a.points.map(p=>p[0]), ys = a.points.map(p=>p[1]); const pad = 4;
+    const x0 = Math.min(...xs)-pad, y0 = Math.min(...ys)-pad;
+    return {x:x0, y:y0, w:Math.max(...xs)-x0+pad, h:Math.max(...ys)-y0+pad};
+  }
+  if (a.type === 'line' || a.type === 'arrow' || a.type === 'dim'){
     const pad = (a.width||2) * 2 + 4;
     const x0 = Math.min(a.x1,a.x2)-pad, y0 = Math.min(a.y1,a.y2)-pad;
     return {x:x0, y:y0, w:Math.abs(a.x2-a.x1)+pad*2, h:Math.abs(a.y2-a.y1)+pad*2};
@@ -540,8 +613,8 @@ function annBox(a){
   return {x:a.x, y:a.y, w:a.w, h:a.h};
 }
 function moveAnn(a, dx, dy){
-  if (a.type === 'line' || a.type === 'arrow'){ a.x1+=dx; a.x2+=dx; a.y1+=dy; a.y2+=dy; }
-  else if (a.type === 'ink'){ a.points = a.points.map(([x,y]) => [x+dx, y+dy]); }
+  if (a.type === 'line' || a.type === 'arrow' || a.type === 'dim'){ a.x1+=dx; a.x2+=dx; a.y1+=dy; a.y2+=dy; }
+  else if (a.type === 'ink' || a.type === 'area'){ a.points = a.points.map(([x,y]) => [x+dx, y+dy]); }
   else { a.x += dx; a.y += dy; }
 }
 function arrowHead(a){
@@ -592,6 +665,7 @@ function renderLayer(p, el){
         d.appendChild(t); break;
       }
       case 'dateseal': d.innerHTML = sealSVG(a); break;
+      case 'dim': case 'area': d.innerHTML = measureSVG(a, b); break;
       case 'highlight': d.style.background = a.color; d.style.opacity = a.opacity ?? .35; break;
       case 'rect': case 'ellipse':
         Object.assign(d.style, {border:`${a.width*z}px solid ${a.color}`, background:a.fill || 'transparent', borderRadius: a.type==='ellipse' ? '50%' : '0'});
@@ -609,14 +683,32 @@ function renderLayer(p, el){
       }
     }
     if (S.sel && S.sel.aid === a.id){
-      if (a.type === 'line' || a.type === 'arrow'){
+      if (a.type === 'line' || a.type === 'arrow' || a.type === 'dim'){
         for (const k of ['1','2']){ const h = document.createElement('div'); h.className = 'h pt'; h.dataset.h = 'p'+k;
           h.style.left = (a['x'+k]-b.x)*z+'px'; h.style.top = (a['y'+k]-b.y)*z+'px'; d.appendChild(h); }
-      } else if (!['text','edittext','ink','note'].includes(a.type)){
+      } else if (!['text','edittext','ink','note','area'].includes(a.type)){
         const h = document.createElement('div'); h.className = 'h se'; h.dataset.h = 'se'; d.appendChild(h);
       }
     }
     layer.appendChild(d);
+  }
+  // 検索で見つかった箇所
+  for (const hit of (F.byPage.get(p.id) || [])){
+    const [x0,y0,x1,y1] = hit.r, m = document.createElement('div');
+    m.className = 'hit' + (hit.i === F.idx ? ' cur' : '');
+    Object.assign(m.style, {left:x0*z+'px', top:y0*z+'px', width:(x1-x0)*z+'px', height:(y1-y0)*z+'px'});
+    layer.appendChild(m);
+  }
+  // 面積の作図中
+  if (AR.pid === p.id && AR.pts.length){
+    const pts = [...AR.pts, ...(AR.hover ? [AR.hover] : [])];
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    Object.assign(s.style, {position:'absolute', inset:0, width:'100%', height:'100%', overflow:'visible', pointerEvents:'none'});
+    const [Wv, Hv] = vis(p); s.setAttribute('viewBox', `0 0 ${Wv} ${Hv}`);
+    s.innerHTML = `<polygon points="${pts.map(q=>q.join(',')).join(' ')}" fill="rgba(0,102,204,.12)" stroke="#0066cc" stroke-width="${1/z}" stroke-dasharray="${4/z} ${3/z}"/>` +
+      AR.pts.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${3/z}" fill="#0066cc"/>`).join('') +
+      (pts.length >= 3 ? `<text x="${pts.reduce((s,q)=>s+q[0],0)/pts.length}" y="${pts.reduce((s,q)=>s+q[1],0)/pts.length}" font-size="${11/z}" text-anchor="middle" fill="#0066cc">${esc(fmtArea(polyArea(pts), S.scale.ratio))}</text>` : '');
+    layer.appendChild(s);
   }
   // ページ番号・ヘッダー/フッター（保存時に書き込む内容を表示）
   const [W, H] = vis(p);
@@ -628,6 +720,135 @@ function renderLayer(p, el){
     layer.appendChild(m);
   }
 }
+
+// ===== 計測（距離・面積） =====
+const PT_MM = 25.4 / 72;
+S.scale = (() => { try { return {ratio:100, unit:'mm', ...JSON.parse(localStorage.getItem('pdfedit.scale') || '{}')}; } catch(e){ return {ratio:100, unit:'mm'}; } })();
+function saveScale(){ try { localStorage.setItem('pdfedit.scale', JSON.stringify(S.scale)); } catch(e){} }
+function polyArea(pts){ let s = 0; for (let i = 0; i < pts.length; i++){ const [x1,y1] = pts[i], [x2,y2] = pts[(i+1)%pts.length]; s += x1*y2 - x2*y1; } return Math.abs(s)/2; }
+function fmtLen(pt, ratio){
+  const mm = pt * PT_MM * ratio;
+  return S.scale.unit === 'm' ? (mm/1000).toLocaleString('ja-JP', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' m'
+                              : Math.round(mm).toLocaleString('ja-JP') + ' mm';
+}
+function fmtArea(pt2, ratio){ const m2 = pt2 * PT_MM * PT_MM * ratio * ratio / 1e6; return m2.toLocaleString('ja-JP', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ㎡'; }
+function measureLabel(a){
+  if (a.type === 'dim'){
+    const L = Math.hypot(a.x2-a.x1, a.y2-a.y1), size = a.size || 9;
+    const vx = (a.x2-a.x1)/(L||1), vy = (a.y2-a.y1)/(L||1);
+    let nx = vy, ny = -vx; if (ny > 0 || (ny === 0 && nx < 0)){ nx = -nx; ny = -ny; }   // 線の上側に置く
+    return {text: fmtLen(L, a.ratio), x:(a.x1+a.x2)/2 + nx*size*0.6, y:(a.y1+a.y2)/2 + ny*size*0.6 + size*0.35};
+  }
+  const n = a.points.length, cx = a.points.reduce((s,q)=>s+q[0],0)/n, cy = a.points.reduce((s,q)=>s+q[1],0)/n;
+  return {text: fmtArea(polyArea(a.points), a.ratio), x:cx, y:cy + (a.size||9)*0.35};
+}
+function measureSVG(a, b){
+  const lb = measureLabel(a), size = a.size || 9, w = a.width || 1, c = a.color;
+  let inner = '';
+  if (a.type === 'dim'){
+    const L = Math.hypot(a.x2-a.x1, a.y2-a.y1) || 1, nx = -(a.y2-a.y1)/L*4, ny = (a.x2-a.x1)/L*4;
+    inner = `<line x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${c}" stroke-width="${w}"/>` +
+      [[a.x1,a.y1],[a.x2,a.y2]].map(([x,y]) => `<line x1="${x-nx}" y1="${y-ny}" x2="${x+nx}" y2="${y+ny}" stroke="${c}" stroke-width="${w}"/>`).join('');
+  } else {
+    inner = `<polygon points="${a.points.map(q=>q.join(',')).join(' ')}" fill="${a.fill || c}" fill-opacity=".15" stroke="${c}" stroke-width="${w}"/>`;
+  }
+  inner += `<text x="${lb.x}" y="${lb.y}" font-family='"PE Gothic"' font-size="${size}" text-anchor="middle" fill="${c}" paint-order="stroke" stroke="#fff" stroke-width="${size*0.25}">${esc(lb.text)}</text>`;
+  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" preserveAspectRatio="none">${inner}</svg>`;
+}
+const AR = {pid:null, pts:[], hover:null};   // 面積の作図中の頂点
+function finishArea(){
+  const p = pageById(AR.pid);
+  if (p && AR.pts.length >= 3){
+    pushUndo();
+    const st = S.styles.area;
+    const a = {id:nid(), type:'area', points:AR.pts.map(q => [...q]), color:st.color, fill:st.fill, width:st.width, size:st.size, ratio:S.scale.ratio};
+    p.anns.push(a); S.sel = {pid:p.id, aid:a.id};
+  } else if (AR.pts.length) toast('面積は3点以上クリックしてください');
+  const op = AR.pid; AR.pid = null; AR.pts = []; AR.hover = null;
+  if (op){ const pp = pageById(op); pp && (renderLayer(pp), renderThumbBadge(pp)); }
+  renderProps();
+}
+function cancelArea(){ const op = AR.pid; AR.pid = null; AR.pts = []; AR.hover = null; if (op){ const pp = pageById(op); pp && renderLayer(pp); } }
+
+// ===== 文字検索 =====
+const F = {q:'', hits:[], idx:-1, run:0, byPage:new Map(), done:true};
+function clearFind(){ F.run++; F.q = ''; F.hits = []; F.idx = -1; F.byPage = new Map(); $('#findCnt') && ($('#findCnt').textContent = ''); }
+function openFind(){
+  if (!S.pages.length) return toast('先にPDFを開いてください');
+  $('#findBar').classList.add('show'); $('#findQ').focus(); $('#findQ').select();
+}
+function closeFind(){ $('#findBar').classList.remove('show'); const pids = [...F.byPage.keys()]; clearFind(); pids.forEach(id => { const p = pageById(id); p && renderLayer(p); }); }
+async function runFind(q){
+  const pidsBefore = [...F.byPage.keys()];
+  clearFind(); F.q = q; const run = F.run;
+  pidsBefore.forEach(id => { const p = pageById(id); p && renderLayer(p); });
+  if (!q) return;
+  F.done = false;
+  const pages = [...S.pages], CH = 8;   // 小分けにして、途中でページ表示も進むように
+  for (let i = 0; i < pages.length; i += CH){
+    const chunk = pages.slice(i, i+CH);
+    let res;
+    try { res = await call('search', {q, items: chunk.map(p => ({src:p.src, index:p.index, rot:p.rot}))}); }
+    catch(e){ $('#findCnt').textContent = 'エラー'; return; }
+    if (run !== F.run) return;
+    for (const r of res){
+      const p = chunk[r.k], arr = F.byPage.get(p.id) || [];
+      for (const rc of r.rects){ const hit = {pid:p.id, r:rc, i:F.hits.length}; F.hits.push(hit); arr.push(hit); }
+      F.byPage.set(p.id, arr); renderLayer(p);
+    }
+    for (const p of chunk){   // 文字認識（OCR）したページ
+      const rects = ocrSearch(p, q); if (!rects.length) continue;
+      const arr = F.byPage.get(p.id) || [];
+      for (const rc of rects){ const hit = {pid:p.id, r:rc, i:F.hits.length}; F.hits.push(hit); arr.push(hit); }
+      F.byPage.set(p.id, arr); renderLayer(p);
+    }
+    $('#findCnt').textContent = `${F.hits.length} 件` + (i + CH < pages.length ? `（${Math.min(100, Math.round((i+CH)/pages.length*100))}%）` : '');
+    if (F.idx < 0 && F.hits.length) gotoHit(0);
+  }
+  F.done = true;
+  $('#findCnt').textContent = F.hits.length ? `${F.idx+1} / ${F.hits.length} 件` : '見つかりません';
+}
+function gotoHit(i){
+  if (!F.hits.length) return;
+  i = (i + F.hits.length) % F.hits.length;
+  const prev = F.hits[F.idx]; F.idx = i; const hit = F.hits[i];
+  if (prev && prev.pid !== hit.pid){ const pp = pageById(prev.pid); pp && renderLayer(pp); }
+  const p = pageById(hit.pid); if (!p) return;
+  renderLayer(p);
+  const el = pageEl(p.id);
+  if (el){ viewer.scrollTo({top: el.offsetTop + hit.r[1]*S.zoom - viewer.clientHeight/3, left: Math.max(0, el.offsetLeft + hit.r[0]*S.zoom - viewer.clientWidth/2), behavior:'smooth'}); setCurrent(p.id); }
+  if (F.done) $('#findCnt').textContent = `${i+1} / ${F.hits.length} 件`;
+}
+$('#bFind').onclick = openFind;
+$('#findQ').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); const q = $('#findQ').value.trim(); if (q !== F.q) runFind(q); else gotoHit(F.idx + (e.shiftKey ? -1 : 1)); }
+  if (e.key === 'Escape'){ e.preventDefault(); closeFind(); }
+  e.stopPropagation();
+});
+$('#findNext').onclick = () => { const q = $('#findQ').value.trim(); q !== F.q ? runFind(q) : gotoHit(F.idx + 1); };
+$('#findPrev').onclick = () => { const q = $('#findQ').value.trim(); q !== F.q ? runFind(q) : gotoHit(F.idx - 1); };
+$('#findClose').onclick = closeFind;
+
+// ===== ページ移動・パン（スペース＋ドラッグ／ホイールボタン） =====
+function gotoIndex(i){ if (!S.pages.length) return; i = Math.max(0, Math.min(S.pages.length-1, i)); scrollToPage(S.pages[i].id); }
+function curIndex(){ return Math.max(0, S.pages.findIndex(p => p.id === S.cur)); }
+$('#navPage').addEventListener('keydown', e => { if (e.key === 'Enter'){ gotoIndex((+e.target.value || 1) - 1); e.target.blur(); } e.stopPropagation(); });
+$('#navPrev').onclick = () => gotoIndex(curIndex() - 1);
+$('#navNext').onclick = () => gotoIndex(curIndex() + 1);
+$('#navFirst').onclick = () => gotoIndex(0);
+$('#navLast').onclick = () => gotoIndex(S.pages.length - 1);
+let spaceDown = false;
+addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !e.target.isContentEditable){ spaceDown = true; viewer.classList.add('pan'); e.preventDefault(); } });
+addEventListener('keyup', e => { if (e.code === 'Space'){ spaceDown = false; viewer.classList.remove('pan'); } });
+viewer.addEventListener('pointerdown', e => {
+  if (!(e.button === 1 || (e.button === 0 && spaceDown))) return;
+  e.preventDefault(); e.stopPropagation();
+  const sx = e.clientX, sy = e.clientY, st = viewer.scrollTop, sl = viewer.scrollLeft;
+  viewer.classList.add('panning');
+  const mv = ev => { viewer.scrollTop = st - (ev.clientY - sy); viewer.scrollLeft = sl - (ev.clientX - sx); };
+  const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); viewer.classList.remove('panning'); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+}, true);
 
 // ===== ページ番号・ヘッダー/フッター =====
 const MM = 72 / 25.4;
@@ -795,6 +1016,37 @@ pagesEl.addEventListener('pointerdown', e => {
   }
   if (S.tool === 'select'){ if (S.sel){ const op = pageById(S.sel.pid); S.sel = null; op && renderLayer(op); renderProps(); } return; }
 
+  if (S.tool === 'area'){
+    e.preventDefault();
+    if (AR.pid && AR.pid !== p.id) cancelArea();
+    AR.pid = p.id;
+    const last = AR.pts[AR.pts.length-1];
+    if (!last || Math.hypot(last[0]-x0, last[1]-y0)*S.zoom > 3) AR.pts.push([x0, y0]);
+    renderLayer(p);
+    return;
+  }
+  if (S.tool === 'textsel'){
+    e.preventDefault();
+    const layer = pel.querySelector('.layer'), z = S.zoom;
+    const ghost = document.createElement('div'); ghost.className = 'ghost'; layer.appendChild(ghost);
+    let r = [x0, y0, x0, y0];
+    const mv = ev => { const [x,y] = ptFromEvent(ev, pel); r = [Math.min(x,x0), Math.min(y,y0), Math.max(x,x0), Math.max(y,y0)];
+      Object.assign(ghost.style, {left:r[0]*z+'px', top:r[1]*z+'px', width:(r[2]-r[0])*z+'px', height:(r[3]-r[1])*z+'px'}); };
+    const up = async () => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+      if ((r[2]-r[0])*z < 4 || (r[3]-r[1])*z < 4){ ghost.remove(); return; }
+      try {
+        const t = (await call('textin', {src:p.src, index:p.index, rot:p.rot, rect:r})) || ocrTextIn(p, r);
+        ghost.remove();
+        if (!t) return toast('この範囲に文字データがありません（スキャンPDFの文字は取り出せません）', 3500);
+        await navigator.clipboard.writeText(t);
+        toast(`${t.length} 文字をコピーしました：${t.length > 30 ? t.slice(0, 30) + '…' : t}`, 3500);
+      } catch(err){ ghost.remove(); toast('コピーできませんでした: ' + err.message); }
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    return;
+  }
+
   if (S.tool === 'note'){
     e.preventDefault();
     pushUndo();
@@ -824,6 +1076,7 @@ pagesEl.addEventListener('pointerdown', e => {
   let a;
   if (tool === 'ink') a = {type:'ink', points:[[x0,y0]], color:st.color, width:st.width};
   else if (tool === 'line' || tool === 'arrow') a = {type:tool, x1:x0, y1:y0, x2:x0, y2:y0, color:st.color, width:st.width};
+  else if (tool === 'dim') a = {type:'dim', x1:x0, y1:y0, x2:x0, y2:y0, color:st.color, width:st.width, size:st.size, ratio:S.scale.ratio};
   else a = {type:tool, x:x0, y:y0, w:0, h:0, ...st};
   a.id = nid();
   const ghost = document.createElement('div'); ghost.className = 'ghost'; layer.appendChild(ghost);
@@ -832,8 +1085,8 @@ pagesEl.addEventListener('pointerdown', e => {
     let [x,y] = ptFromEvent(ev, pel);
     if (!started){ pushUndo(); p.anns.push(a); started = true; }
     if (tool === 'ink') a.points.push([x,y]);
-    else if (tool === 'line' || tool === 'arrow'){
-      if (ev.shiftKey){ const ang = Math.round(Math.atan2(y-y0, x-x0)/(Math.PI/4))*(Math.PI/4); const L = Math.hypot(x-x0,y-y0); x = x0+L*Math.cos(ang); y = y0+L*Math.sin(ang); }
+    else if (tool === 'line' || tool === 'arrow' || tool === 'dim'){
+      if (ev.shiftKey || (tool === 'dim' && !ev.altKey && snapOrtho(x-x0, y-y0))){ const ang = Math.round(Math.atan2(y-y0, x-x0)/(Math.PI/4))*(Math.PI/4); const L = Math.hypot(x-x0,y-y0); x = x0+L*Math.cos(ang); y = y0+L*Math.sin(ang); }
       a.x2 = x; a.y2 = y;
     } else {
       if (ev.shiftKey && tool !== 'highlight'){ const s = Math.max(Math.abs(x-x0), Math.abs(y-y0)); x = x0 + Math.sign(x-x0)*s; y = y0 + Math.sign(y-y0)*s; }
@@ -845,14 +1098,29 @@ pagesEl.addEventListener('pointerdown', e => {
     removeEventListener('pointermove', mv); removeEventListener('pointerup', up); ghost.remove();
     if (!started) return;
     const b = annBox(a);
-    const tiny = (tool === 'ink') ? a.points.length < 2 : (tool === 'line' || tool === 'arrow') ? Math.hypot(a.x2-a.x1, a.y2-a.y1) < 2 : (a.w < 2 || a.h < 2);
+    const tiny = (tool === 'ink') ? a.points.length < 2 : (tool === 'line' || tool === 'arrow' || tool === 'dim') ? Math.hypot(a.x2-a.x1, a.y2-a.y1) < 2 : (a.w < 2 || a.h < 2);
     if (tiny){ p.anns = p.anns.filter(x => x !== a); S.undo.pop(); }
+    else if (tool === 'dim' && S.calibrating){
+      S.calibrating = false;
+      const L = Math.hypot(a.x2-a.x1, a.y2-a.y1);
+      const v = prompt('引いた線の実際の長さを mm で入力してください（例：6000）');
+      if (v && +v > 0){ S.scale.ratio = +(+v / (L * PT_MM)).toPrecision(6); saveScale(); a.ratio = S.scale.ratio; toast(`縮尺を 1/${Math.round(S.scale.ratio*100)/100} にしました`); }
+      else { p.anns = p.anns.filter(x => x !== a); S.undo.pop(); }
+    }
     else if (!['ink','highlight','whiteout','redact'].includes(tool)) S.sel = {pid:p.id, aid:a.id};
     renderLayer(p); renderProps(); renderThumbBadge(p); updateButtons();
   };
   addEventListener('pointermove', mv); addEventListener('pointerup', up);
 });
+// 距離は水平・垂直に吸着（Alt で自由、Shift で45°単位）
+function snapOrtho(dx, dy){ const ang = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI) % 90; return ang < 3 || ang > 87; }
+pagesEl.addEventListener('pointermove', e => {
+  if (S.tool !== 'area' || !AR.pid) return;
+  const pel = e.target.closest('.page'); if (!pel || pel.dataset.pid !== AR.pid) return;
+  AR.hover = ptFromEvent(e, pel); renderLayer(pageById(AR.pid));
+});
 pagesEl.addEventListener('dblclick', e => {
+  if (S.tool === 'area' && AR.pid){ e.preventDefault(); finishArea(); return; }
   const annEl = e.target.closest('.ann'); if (!annEl) return;
   const p = pageById(annEl.dataset.pid), a = p?.anns.find(a => a.id === annEl.dataset.aid);
   if (a && ['text','edittext','stamp','note'].includes(a.type)){ pushUndo(); beginEdit(p, a); }
@@ -867,10 +1135,12 @@ function renderThumbBadge(p){
 
 // ===== ツール切替 =====
 function setTool(t){
+  if (AR.pid && t !== 'area') cancelArea();
   S.tool = t;
   document.querySelectorAll('#tools [data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   viewer.className = 'tool-' + t;
   if (t === 'edittext') toast('書き換えたい文字（青い枠）をクリックしてください');
+  if (t === 'textsel') toast('コピーしたい文字をドラッグで囲んでください');
   S.pages.forEach(p => { const el = pageEl(p.id); if (el){ renderLayer(p, el); } });
   if (t === 'edittext'){ // 表示中ページの文字を読み込み
     pagesEl.querySelectorAll('.page').forEach(el => { const r = el.getBoundingClientRect(), v = viewer.getBoundingClientRect();
@@ -887,7 +1157,7 @@ function renderProps(){
   if (S.sel){ p = pageById(S.sel.pid); a = p?.anns.find(x => x.id === S.sel.aid); if (!a) S.sel = null; }
   const target = a || S.styles[S.tool] || null;
   const kind = a ? a.type : S.tool;
-  const names = {select:'選択',text:'文字',edittext:'文字修正',whiteout:'白塗り',highlight:'マーカー',rect:'四角',ellipse:'楕円',line:'線',arrow:'矢印',ink:'手書き',image:'画像',stamp:'スタンプ',redact:'墨消し',note:'付箋',dateseal:'日付印'};
+  const names = {select:'選択',text:'文字',edittext:'文字修正',whiteout:'白塗り',highlight:'マーカー',rect:'四角',ellipse:'楕円',line:'線',arrow:'矢印',ink:'手書き',image:'画像',stamp:'スタンプ',redact:'墨消し',note:'付箋',dateseal:'日付印',textsel:'文字コピー',dim:'距離',area:'面積'};
   let h = `<h3>${a ? '選択中：' + names[kind] : 'ツール：' + names[kind]}</h3>`;
   const fields = [];
   if (target){
@@ -895,11 +1165,18 @@ function renderProps(){
     if ('size' in target) fields.push(['size', '文字サイズ(pt)', `<input type="number" data-k="size" min="4" max="300" step="0.5" value="${target.size}">`]);
     if ('color' in target) fields.push(['color', '色', `<input type="color" data-k="color" value="${target.color}">`]);
     if ('width' in target) fields.push(['width', '線の太さ(pt)', `<input type="number" data-k="width" min="0.25" max="30" step="0.25" value="${target.width}">`]);
-    if ('fill' in target && !['whiteout','redact','note'].includes(kind)) fields.push(['fill', '塗りつぶし', `<label><input type="checkbox" data-k="fillOn" ${target.fill?'checked':''}> </label><input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
-    if (['whiteout','redact','note'].includes(kind)) fields.push(['fill', kind === 'note' ? '付箋の色' : '塗る色', `<input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if ('fill' in target && !['whiteout','redact','note','area'].includes(kind)) fields.push(['fill', '塗りつぶし', `<label><input type="checkbox" data-k="fillOn" ${target.fill?'checked':''}> </label><input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
+    if (['whiteout','redact','note','area'].includes(kind)) fields.push(['fill', kind === 'note' ? '付箋の色' : '塗る色', `<input type="color" data-k="fill" value="${target.fill || '#ffffff'}">`]);
     if ('opacity' in target) fields.push(['opacity', '濃さ', `<input type="range" data-k="opacity" min="0.1" max="1" step="0.05" value="${target.opacity}">`]);
   }
   h += fields.map(([k, l, inp]) => `<div class="row"><label>${l}</label><span>${inp}</span></div>`).join('');
+  if (kind === 'dim' || kind === 'area'){
+    const ratio = a ? a.ratio : S.scale.ratio;
+    h += `<div class="row"><label>縮尺</label><span>1 / <input type="number" id="msRatio" min="1" step="any" value="${+ratio.toFixed(3)}" style="width:80px"></span></div>`;
+    if (a) h += `<div class="row"><label>測った値</label><b>${esc(measureLabel(a).text)}</b></div>`;
+    else h += `<div class="row"><label>表示単位</label><select id="msUnit"><option value="mm" ${S.scale.unit==='mm'?'selected':''}>mm</option><option value="m" ${S.scale.unit==='m'?'selected':''}>m</option></select></div>
+      <div class="row"><button class="tb" id="msCal">寸法がわかる線で縮尺を合わせる</button></div>`;
+  }
   if (a){
     if (a.type === 'dateseal') h += `<div class="row"><button class="tb" id="aSeal">文字・日付を変更…</button></div>`;
     if (['image','rect','ellipse','whiteout','highlight','stamp','note','dateseal','redact'].includes(a.type))
@@ -932,6 +1209,13 @@ function renderProps(){
     inp.addEventListener('change', () => { pushed = false; });
   });
   $('#aDel') && ($('#aDel').onclick = deleteSelectedAnn);
+  $('#msRatio') && ($('#msRatio').onchange = e => {
+    const v = +e.target.value; if (!(v > 0)) return;
+    if (a){ pushUndo(); a.ratio = v; renderLayer(p); renderProps(); }
+    else { S.scale.ratio = v; saveScale(); }
+  });
+  $('#msUnit') && ($('#msUnit').onchange = e => { S.scale.unit = e.target.value; saveScale(); S.pages.forEach(pp => renderLayer(pp)); });
+  $('#msCal') && ($('#msCal').onclick = () => { setTool('dim'); S.calibrating = true; toast('図面の中で長さがわかる線（通り芯間など）をなぞってください', 5000); });
   $('#aSeal') && ($('#aSeal').onclick = () => openSeal(p, a));
   $('#aDup') && ($('#aDup').onclick = () => { copyAnn(); pasteAnn(); });
 }
@@ -949,6 +1233,9 @@ function hintFor(k){
     redact: 'ドラッグで範囲を囲むと、保存時にその範囲の文字・画像・図形を完全に削除して塗りつぶします（白塗りと違い、下の文字データも残りません）。',
     note: 'ページ上をクリックして付箋を貼り、メモを入力します。ダブルクリックで書き換え。',
     dateseal: 'ダブルクリックで部署・日付・名前を変更。角のハンドルで大きさを変更。',
+    textsel: 'コピーしたい文字をドラッグで囲むと、クリップボードにコピーします。Ctrl+V で Excel や Word に貼れます。',
+    dim: 'ドラッグで距離を測ります（水平・垂直に吸着、Alt で自由、Shift で45°単位）。縮尺は図面の縮尺（1/100 なら 100）。わからないときは「寸法がわかる線で縮尺を合わせる」。',
+    area: 'クリックで頂点を置き、ダブルクリック（または Enter）で確定します。Esc で取り消し。',
   }[k] || '';
 }
 function fitStamp(a){ const m = measureText(a.text, a.font, a.size); const pad = a.size*0.35; a.w = m.w + pad*2; a.h = m.h + pad*2; }
@@ -1042,7 +1329,16 @@ $('#bInsert').onclick = e => {
 };
 $('#fInsert').onchange = e => { const at = S._insertAt; S._insertAt = null; openFiles(e.target.files, at != null ? {at} : 'insert'); e.target.value = ''; };
 $('#fOpen').onchange = e => { openFiles(e.target.files, 'open'); e.target.value = ''; };
-$('#bOpen').onclick = $('#bOpen2').onclick = () => $('#fOpen').click();
+async function pickOpen(){
+  if (!window.showOpenFilePicker) return $('#fOpen').click();
+  let hs;
+  try { hs = await showOpenFilePicker({multiple:true, types:[{description:'PDF・画像・DocuWorks', accept:{'application/pdf':['.pdf'], 'image/*':['.png','.jpg','.jpeg','.tif','.tiff','.bmp','.gif'], 'application/octet-stream':['.xdw','.xbd','.svg','.xps','.txt']}}]}); }
+  catch(e){ if (e.name !== 'AbortError') $('#fOpen').click(); return; }
+  const files = await Promise.all(hs.map(h => h.getFile()));
+  openHandle = hs.length === 1 && /\.pdf$/i.test(files[0].name) ? hs[0] : null;
+  openFiles(files, 'open');
+}
+$('#bOpen').onclick = $('#bOpen2').onclick = pickOpen;
 
 function selectedIndexes(){
   const ids = S.selPages.size ? S.selPages : new Set(S.cur ? [S.cur] : []);
@@ -1068,8 +1364,8 @@ function rotatePages(delta){
     const f = delta > 0 ? ([x,y]) => [H - y, x] : ([x,y]) => [y, W - x];
     const fr = (x0,y0,x1,y1) => { const [a,b] = f([x0,y0]), [c,d] = f([x1,y1]); return [Math.min(a,c), Math.min(b,d), Math.max(a,c), Math.max(b,d)]; };
     for (const a of p.anns){
-      if (a.type === 'line' || a.type === 'arrow'){ [a.x1,a.y1] = f([a.x1,a.y1]); [a.x2,a.y2] = f([a.x2,a.y2]); }
-      else if (a.type === 'ink') a.points = a.points.map(f);
+      if (a.type === 'line' || a.type === 'arrow' || a.type === 'dim'){ [a.x1,a.y1] = f([a.x1,a.y1]); [a.x2,a.y2] = f([a.x2,a.y2]); }
+      else if (a.type === 'ink' || a.type === 'area') a.points = a.points.map(f);
       else if (a.type === 'text' || a.type === 'edittext'){
         [a.x, a.y] = f([a.x, a.y]); if (delta > 0) a.x -= measureText(a.text, a.font, a.size).h;
         if (a.ox0 != null) [a.ox0,a.oy0,a.ox1,a.oy1] = fr(a.ox0,a.oy0,a.ox1,a.oy1);
@@ -1157,14 +1453,18 @@ thumbsEl.addEventListener('dragend', () => { dragIds = null; clearDropMarks(); }
 // ビューアへのファイルドロップ
 viewer.addEventListener('dragover', e => { if (dragIds) return; e.preventDefault(); viewer.classList.add('dragover'); });
 viewer.addEventListener('dragleave', e => { if (!viewer.contains(e.relatedTarget)) viewer.classList.remove('dragover'); });
-viewer.addEventListener('drop', e => {
+viewer.addEventListener('drop', async e => {
   e.preventDefault(); viewer.classList.remove('dragover');
   if (!e.dataTransfer.files.length) return;
-  if (!S.pages.length) return openFiles(e.dataTransfer.files, 'open');
+  // 1つのPDFを開くときはファイルの場所も受け取る（上書き保存できるように）
+  const it = e.dataTransfer.items, hp = (it && it.length === 1 && it[0].getAsFileSystemHandle) ? it[0].getAsFileSystemHandle() : null;
+  const files = [...e.dataTransfer.files];
+  const withHandle = async () => { try { const hd = hp && await hp; openHandle = hd && hd.kind === 'file' && /\.pdf$/i.test(hd.name) ? hd : null; } catch(err){ openHandle = null; } };
+  if (!S.pages.length){ await withHandle(); return openFiles(files, 'open'); }
   showMenu({getBoundingClientRect:() => ({left:e.clientX, bottom:e.clientY})}, [
-    ['いまのファイルの末尾に追加（結合）', () => openFiles(e.dataTransfer.files, {at:S.pages.length})],
-    ['選択ページの後に挿入', () => openFiles(e.dataTransfer.files, 'insert')],
-    ['新しく開く（いまの内容は閉じる）', () => openFiles(e.dataTransfer.files, 'open')],
+    ['いまのファイルの末尾に追加（結合）', () => openFiles(files, {at:S.pages.length})],
+    ['選択ページの後に挿入', () => openFiles(files, 'insert')],
+    ['新しく開く（いまの内容は閉じる）', async () => { await withHandle(); openFiles(files, 'open'); }],
   ]);
 });
 
@@ -1173,7 +1473,7 @@ function scrollToPage(id){ const el = pageEl(id); if (el) viewer.scrollTo({top: 
 function setCurrent(id){
   if (S.cur === id) return; S.cur = id;
   thumbsEl.querySelectorAll('.thumb').forEach(el => el.classList.toggle('cur', el.dataset.pid === id));
-  const i = S.pages.findIndex(p => p.id === id); $('#stPage').textContent = i >= 0 ? `${i+1} / ${S.pages.length} ページ` : '';
+  const i = S.pages.findIndex(p => p.id === id); $('#navPage').value = i >= 0 ? i+1 : ''; $('#navTotal').textContent = S.pages.length;
   const t = thumbsEl.querySelector(`.thumb[data-pid="${id}"]`); if (t){ const r = t.getBoundingClientRect(), v = thumbsEl.getBoundingClientRect(); if (r.top < v.top || r.bottom > v.bottom) t.scrollIntoView({block:'nearest'}); }
 }
 viewer.addEventListener('scroll', () => {
@@ -1202,24 +1502,47 @@ async function exportSpec(pages, opts){
   const marks = pages.map(p => pageMarks(S.pages.indexOf(p)));
   await Promise.all([...new Set(marks.flat().map(m => m.font))].filter(k => FONTS[k]?.web).map(fontReady));
   opts = {...opts, marks};
-  return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh, bookmark:p.bookmark || '',
+  return {pages: pages.map(p => ({src:p.src, index:p.index, rot:p.rot, w:p.bw, h:p.bh, bookmark:p.bookmark || '', ocr:ocrLines(p),
     annotations: p.anns.filter(a => !((a.type === 'text' || a.type === 'note') && !a.text.trim())).map(a => {
       const o = {...a};
       if (a.type === 'text' || a.type === 'edittext'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; }
       if (a.type === 'stamp' || a.type === 'note'){ o.baseline = baselineRatio(a.font); o.lineHeight = LH; o.pad = a.size*0.35; }
+      if (a.type === 'text' || a.type === 'note'){ const m = measureText(a.text || ' ', a.font, a.size); o.bw = m.w; o.bh = m.h; }
+      if (a.type === 'dim' || a.type === 'area'){ const lb = measureLabel(a); o.label = lb.text; o.lx = lb.x; o.ly = lb.y; }
       return o;
     })})), options: opts};
 }
-$('#bSave').onclick = () => {
+// 上書き保存：開いたファイルにそのまま書き戻す（Acrobat の Ctrl+S と同じ）
+async function quickSave(){
   if (!S.pages.length) return;
+  if (!S.handle) return openSaveDialog();
+  try {
+    if ((await S.handle.queryPermission({mode:'readwrite'})) !== 'granted' && (await S.handle.requestPermission({mode:'readwrite'})) !== 'granted')
+      return openSaveDialog();
+    busy(true);
+    const blob = await exportPDF(S.pages, S.lastOpts || {annotMode: annotPref()});
+    const w = await S.handle.createWritable(); await w.write(blob); await w.close();
+    S.dirty = false; updateButtons(); toast('上書き保存しました: ' + S.handle.name);
+  } catch(err){ alert('上書き保存できませんでした: ' + err.message + '\n「名前を付けて保存」をお試しください。'); }
+  finally { busy(false); }
+}
+$('#bSave').onclick = quickSave;
+$('#bSaveAs').onclick = () => openSaveDialog();
+function openSaveDialog(){
+  if (!S.pages.length) return;
+  const am = annotPref(); document.querySelectorAll('input[name=sAnnot]').forEach(r => r.checked = r.value === am);
   $('#sName').value = S.fileName || 'document.pdf';
   document.querySelector('input[name=sRange][value=sel]').disabled = S.selPages.size === 0;
   if (!S.selPages.size) document.querySelector('input[name=sRange][value=all]').checked = true;
   $('#sNumInfo').textContent = S.marks.length ? `${S.marks.length} 件設定済み（そのまま書き込みます）` : 'なし';
   $('#dSave').showModal();
 };
+function annotPref(){ try { return localStorage.getItem('pdfedit.annotMode') || 'annot'; } catch(e){ return 'annot'; } }
 function saveOptions(){
+  const annotMode = document.querySelector('input[name=sAnnot]:checked')?.value || 'annot';
+  try { localStorage.setItem('pdfedit.annotMode', annotMode); } catch(e){}
   return {
+    annotMode,
     paper: $('#sPaper').value,
     watermark: $('#wmOn').checked ? {enabled:true, text:$('#wmText').value, size:+$('#wmSize').value, color:$('#wmColor').value, opacity:$('#wmOpacity').value/100} : null,
     compress: $('#sCompress').checked,
@@ -1235,6 +1558,7 @@ async function saveBlob(name, getBlob, type){
     catch(e){ if (e.name === 'AbortError') return false; handle = null; }
     if (handle){
       const blob = await getBlob(); const w = await handle.createWritable(); await w.write(blob); await w.close();
+      saveBlob.handle = handle;
       return handle.name;
     }
   }
@@ -1256,7 +1580,11 @@ $('#sOk').onclick = async e => {
       try { return await exportPDF(pages, opts); }
       finally { busy(false); }
     });
-    if (saved){ if (pages === S.pages){ S.fileName = saved; S.dirty = false; updateButtons(); } toast('保存しました: ' + saved); }
+    if (saved){
+      if (pages === S.pages){ S.fileName = saved; S.dirty = false; S.lastOpts = opts; if (saveBlob.handle) S.handle = saveBlob.handle; updateButtons(); }
+      toast('保存しました: ' + saved);
+    }
+    saveBlob.handle = null;
   } catch(err){ busy(false); alert('保存できませんでした: ' + err.message); }
 };
 
@@ -1311,8 +1639,14 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
   if (c && k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (c && k === 'y'){ e.preventDefault(); redo(); return; }
-  if (c && k === 's'){ e.preventDefault(); $('#bSave').click(); return; }
-  if (c && k === 'o'){ e.preventDefault(); $('#fOpen').click(); return; }
+  if (c && k === 's'){ e.preventDefault(); e.shiftKey ? openSaveDialog() : quickSave(); return; }
+  if (c && k === 'o'){ e.preventDefault(); pickOpen(); return; }
+  if (c && k === 'f'){ e.preventDefault(); openFind(); return; }
+  if (k === 'f3'){ e.preventDefault(); F.hits.length ? gotoHit(F.idx + (e.shiftKey ? -1 : 1)) : openFind(); return; }
+  if (S.tool === 'area' && AR.pid && k === 'enter'){ e.preventDefault(); finishArea(); return; }
+  if (S.tool === 'area' && AR.pid && k === 'escape'){ e.preventDefault(); cancelArea(); return; }
+  if (!S.sel && (k === 'pagedown' || k === 'pageup')){ e.preventDefault(); gotoIndex(curIndex() + (k === 'pagedown' ? 1 : -1)); return; }
+  if (!S.sel && (k === 'home' || k === 'end')){ e.preventDefault(); gotoIndex(k === 'home' ? 0 : S.pages.length - 1); return; }
   if (c && k === 'p'){ e.preventDefault(); printPDF(); return; }
   if (c && k === 'c'){ copyAnn(); return; }
   if (c && k === 'v'){ e.preventDefault(); pasteAnn(); return; }
@@ -1333,7 +1667,7 @@ addEventListener('keydown', e => {
   }
   if (k === 'escape'){ if (S.sel){ const p = pageById(S.sel.pid); S.sel = null; p && renderLayer(p); renderProps(); } else setTool('select'); return; }
   if (c || e.altKey) return;
-  const map = {v:'select', t:'text', e:'edittext', w:'whiteout', h:'highlight', r:'rect', o:'ellipse', l:'line', a:'arrow', p:'ink', b:'redact', n:'note'};
+  const map = {v:'select', t:'text', e:'edittext', w:'whiteout', h:'highlight', r:'rect', o:'ellipse', l:'line', a:'arrow', p:'ink', b:'redact', n:'note', c:'textsel', m:'dim', g:'area'};
   if (map[k]) setTool(map[k]);
 });
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
@@ -1477,6 +1811,7 @@ $('#bConvert').onclick = e => {
   showMenu(e.currentTarget, [
     ['PDF → 画像（PNG / JPEG）…', () => { if (!S.pages.length) return toast('先にPDFを開いてください'); document.querySelector('input[name=cvRange][value=sel]').disabled = !S.selPages.size; $('#dConv').showModal(); }],
     ['PDF → テキスト（.txt）', convertText],
+    ['文字認識（OCR）… 画像だけのPDFを検索・コピーできるようにする', openOcr],
     '-',
     ['画像・SVG・XPS・テキスト → PDF', () => { toast('ファイルを選ぶとPDFとして開きます。そのまま「保存」でPDFになります', 4500); $('#fOpen').click(); }],
     ['複数の画像を1つのPDFにまとめる', () => { toast('画像をまとめて選ぶと1つのPDFになります（順番は左で並べ替え）', 4500); $('#fOpen').click(); }],
@@ -1652,6 +1987,168 @@ $('#cvOk').onclick = async e => {
   } catch(err){ alert('変換できませんでした: ' + err.message); }
   finally { busy(false); $('#busy').textContent = '処理中…'; }
 };
+
+// ===== 文字認識（OCR）：tesseract.js をブラウザ内で動かす =====
+const OCR = {map:new Map(), worker:null, cancel:false};   // 元ページ → 読み取った行（見た目座標・読み取り時の回転）
+const ocrKey = p => `${p.src}|${p.index}`;
+function rotXY(W, H, d, [x, y]){ d = ((d % 360) + 360) % 360; return d === 90 ? [H - y, x] : d === 180 ? [W - x, H - y] : d === 270 ? [y, W - x] : [x, y]; }
+function ocrLines(p){   // いまの向きに直した行の一覧
+  const o = OCR.map.get(ocrKey(p)); if (!o) return undefined;
+  const d = p.rot - o.rot; if (!d) return o.lines;
+  const [W, H] = o.size;
+  return o.lines.map(l => { const [a,b] = rotXY(W, H, d, [l.r[0], l.r[1]]), [c,e] = rotXY(W, H, d, [l.r[2], l.r[3]]);
+    return {t:l.t, r:[Math.min(a,c), Math.min(b,e), Math.max(a,c), Math.max(b,e)]}; });
+}
+function ocrSearch(p, q){
+  const lines = ocrLines(p); if (!lines) return [];
+  const out = [], qq = q.toLowerCase();
+  for (const l of lines){
+    const t = l.t.toLowerCase(); let i = t.indexOf(qq);
+    while (i >= 0){
+      const w = l.r[2] - l.r[0], n = t.length || 1;
+      out.push([l.r[0] + w*i/n, l.r[1], l.r[0] + w*(i+qq.length)/n, l.r[3]]);
+      i = t.indexOf(qq, i + 1);
+    }
+  }
+  return out;
+}
+function ocrTextIn(p, r){
+  const lines = ocrLines(p); if (!lines) return '';
+  return lines.filter(l => l.r[2] > r[0] && l.r[0] < r[2] && l.r[3] > r[1] && l.r[1] < r[3]).map(l => l.t).join('\n');
+}
+async function loadTesseract(){
+  if (OCR.worker) return OCR.worker;
+  if (!window.Tesseract){
+    await new Promise((ok, ng) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = () => ng(new Error('文字認識の部品を読み込めません（ネット接続を確認）')); document.head.appendChild(s); });
+  }
+  OCR.worker = await Tesseract.createWorker('jpn', 1, {logger: m => { if (m.status && m.status.includes('load')) $('#dwbMsg').textContent = '読み取り用データを準備中… ' + Math.round((m.progress || 0)*100) + '%'; }});
+  // 表や図面の文字（ばらばらに置かれた文字）を拾いやすいモード。計算書の表で読み取りが大きく良くなる
+  await OCR.worker.setParameters({tessedit_pageseg_mode: '11'});
+  return OCR.worker;
+}
+function openOcr(){
+  if (!S.pages.length) return toast('先にPDFを開いてください');
+  document.querySelector('input[name=ocrRange][value=sel]').disabled = !S.selPages.size;
+  $('#dOcr').showModal();
+}
+$('#ocrGo').onclick = async e => {
+  e.preventDefault();
+  const range = document.querySelector('input[name=ocrRange]:checked').value, dpi = +$('#ocrDpi').value;
+  $('#dOcr').close();
+  let pages = range === 'cur' ? [pageById(S.cur) || S.pages[0]] : range === 'sel' ? S.pages.filter(p => S.selPages.has(p.id)) : [...S.pages];
+  pages = pages.filter(p => p.src !== 'blank' && !OCR.map.has(ocrKey(p)));
+  OCR.cancel = false; $('#dwBusy').classList.add('show'); dwProgress('文字認識（OCR）', 0, '文字データのないページを探しています…');
+  const prevCancel = $('#dwbCancel').onclick; $('#dwbCancel').onclick = () => { OCR.cancel = true; $('#dwbMsg').textContent = '中止しています…'; };
+  let done = 0, skipped = 0;
+  try {
+    const has = await call('hastext', {items: pages.map(p => ({src:p.src, index:p.index}))});
+    const todo = pages.filter((p, i) => !has[i]); skipped = pages.length - todo.length;
+    if (!todo.length){ toast(skipped ? 'どのページにも文字データがあります（OCR は不要です）' : '対象のページがありません', 4000); return; }
+    const w = await loadTesseract();
+    const t0 = performance.now();
+    for (const p of todo){
+      if (OCR.cancel) break;
+      const rest = done ? Math.round((performance.now() - t0) / done * (todo.length - done) / 1000) : null;
+      dwProgress('文字認識（OCR）', done / todo.length, `${done} / ${todo.length} ページ` + (rest != null ? `　残り約 ${dwFmtSec(rest)}` : ''));
+      const sc = dpi / 72;
+      const png = await call('render', {src:p.src, index:p.index, rot:p.rot, scale:sc, w:p.bw, h:p.bh});
+      const {data} = await w.recognize(new Blob([png], {type:'image/png'}));
+      const lines = (data.lines || []).map(l => ({
+        t: l.text.trim().replace(/(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])/g, ''),
+        r: [l.bbox.x0/sc, l.bbox.y0/sc, l.bbox.x1/sc, l.bbox.y1/sc]})).filter(l => l.t && l.r[3] > l.r[1]);
+      OCR.map.set(ocrKey(p), {rot:p.rot, size:vis(p), lines});
+      done++;
+    }
+    S.dirty = true; updateButtons();
+    toast(`${done} ページの文字を読み取りました。検索・文字コピーができます（保存すると他のソフトでも検索できます）`, 5000);
+    if (F.q) runFind(F.q);
+  } catch(err){ alert('文字認識できませんでした: ' + err.message); }
+  finally { $('#dwBusy').classList.remove('show'); $('#dwbCancel').onclick = prevCancel; }
+};
+
+// ===== 比較（図面の改訂前後など） =====
+const CMP = {old:null, i:0, zoom:1, diffs:null, scanning:0};
+$('#bCompare').onclick = () => {
+  if (!S.pages.length) return toast('先に新しい方のPDFを開いてください');
+  toast('比べる相手（古い方）のPDFを選んでください', 3500);
+  $('#fCompare').click();
+};
+$('#fCompare').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  busy(true);
+  try { CMP.old = await call('open', {file:f, name:f.name}); CMP.oldName = f.name; }
+  catch(err){ busy(false); return alert('開けませんでした: ' + err.message); }
+  busy(false);
+  CMP.i = curIndex(); CMP.diffs = null; CMP.zoom = 1;
+  $('#cmpTitle').textContent = `比較：${S.fileName}（新）と ${f.name}（古）`;
+  $('#cmp').classList.add('show');
+  cmpShow();
+  cmpScan();
+};
+function cmpClose(){ $('#cmp').classList.remove('show'); CMP.scanning++; if (CMP.old){ call('close', {src:CMP.old.id}).catch(() => {}); CMP.old = null; } }
+async function cmpImages(i, scale){
+  const pa = S.pages[i], ob = CMP.old.pages[i];
+  const imgOf = async (bytes) => { const im = new Image(); im.src = URL.createObjectURL(new Blob([bytes], {type:'image/png'})); await im.decode(); return im; };
+  const a = pa ? await imgOf(await call('render', {src:pa.src, index:pa.index, rot:pa.rot, scale, w:pa.bw, h:pa.bh})) : null;
+  const b = ob ? await imgOf(await call('render', {src:CMP.old.id, index:ob.index, rot:0, scale, w:ob.w, h:ob.h})) : null;
+  return [a, b];
+}
+// 2枚を同じ大きさに重ね、黒い部分の違いを色分けする（新だけ=赤、古だけ=青、同じ=薄灰）
+function cmpDiff(a, b, cv, view){
+  const W = (a || b).naturalWidth, H = (a || b).naturalHeight;
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', {willReadFrequently:true});
+  const get = im => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); if (im) ctx.drawImage(im, 0, 0, W, H); return ctx.getImageData(0, 0, W, H); };
+  if (view === 'new' || view === 'old'){ get(view === 'new' ? a : b); return null; }
+  const A = get(a).data, B = get(b).data, out = ctx.createImageData(W, H), O = out.data;
+  let changed = 0;
+  for (let k = 0; k < A.length; k += 4){
+    const la = (A[k]*3 + A[k+1]*6 + A[k+2]) / 10, lb = (B[k]*3 + B[k+1]*6 + B[k+2]) / 10;
+    const da = la < 200, db = lb < 200;
+    let r = 255, g = 255, bl = 255;
+    if (da && db){ r = g = bl = 190; }
+    else if (da){ r = 229; g = 57; bl = 53; changed++; }
+    else if (db){ r = 30; g = 136; bl = 229; changed++; }
+    O[k] = r; O[k+1] = g; O[k+2] = bl; O[k+3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return changed / (W * H);
+}
+async function cmpShow(){
+  const n = Math.max(S.pages.length, CMP.old.pages.length);
+  CMP.i = Math.max(0, Math.min(n - 1, CMP.i));
+  $('#cmpPage').textContent = `${CMP.i + 1} / ${n} ページ`;
+  const p = S.pages[CMP.i] || null;
+  const fitScale = p ? Math.min(2.5, ($('#cmpBody').clientWidth - 40) / vis(p)[0]) : 1;
+  const [a, b] = await cmpImages(CMP.i, Math.max(0.3, fitScale * CMP.zoom));
+  if (!a || !b){ $('#cmpMsg').textContent = !a ? 'このページは新しい方にありません' : 'このページは古い方にありません'; }
+  const r = cmpDiff(a, b, $('#cmpCv'), (!a || !b) ? (a ? 'new' : 'old') : $('#cmpView').value);
+  if (a && b) $('#cmpMsg').textContent = r == null ? '' : (r < 0.00005 ? '違いはありません' : `違いのある部分 ${(r*100).toFixed(2)}%`);
+}
+async function cmpScan(){   // 違いのあるページを探しておく（低解像度で全ページ）
+  const run = ++CMP.scanning, n = Math.min(S.pages.length, CMP.old.pages.length), diffs = [];
+  const cv = document.createElement('canvas');
+  for (let i = 0; i < n; i++){
+    if (run !== CMP.scanning || !CMP.old) return;
+    const [a, b] = await cmpImages(i, 0.5);
+    if (cmpDiff(a, b, cv, 'diff') > 0.00005) diffs.push(i);
+    $('#cmpNextDiff').textContent = `違いのある次のページ ▶（調べた ${i+1}/${n}、違い ${diffs.length} ページ）`;
+  }
+  CMP.diffs = diffs;
+  if (S.pages.length !== CMP.old.pages.length) diffs.push(...Array.from({length: Math.abs(S.pages.length - CMP.old.pages.length)}, (_, k) => n + k));
+  $('#cmpNextDiff').textContent = diffs.length ? `違いのある次のページ ▶（${diffs.length} ページ）` : '違いのあるページはありません';
+}
+$('#cmpPrev').onclick = () => { CMP.i--; cmpShow(); };
+$('#cmpNext').onclick = () => { CMP.i++; cmpShow(); };
+$('#cmpNextDiff').onclick = () => {
+  if (!CMP.diffs) return toast('違いのあるページを調べています。少しお待ちください');
+  if (!CMP.diffs.length) return toast('違いのあるページはありません');
+  CMP.i = CMP.diffs.find(i => i > CMP.i) ?? CMP.diffs[0]; cmpShow();
+};
+$('#cmpView').onchange = cmpShow;
+$('#cmpZoomIn').onclick = () => { CMP.zoom *= 1.4; cmpShow(); };
+$('#cmpZoomOut').onclick = () => { CMP.zoom /= 1.4; cmpShow(); };
+$('#cmpClose').onclick = cmpClose;
 
 // ===== 起動 =====
 setTool('select'); updateButtons();
