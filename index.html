@@ -361,7 +361,7 @@ dialog .r button{padding:4px 10px;border-radius:5px;border:1px solid var(--line)
 
 <script>
 'use strict';
-const APP_VER = '20261112';   // 更新したら変える（古い worker.js が使われないように）
+const APP_VER = '20261112b';   // 更新したら変える（古い worker.js が使われないように）
 // ===== 状態 =====
 const FONTS = {
   'gothic':   {label:'ゴシック',       css:'"PE Gothic"', weight:400, web:true},
@@ -1822,6 +1822,7 @@ $('#bConvert').onclick = e => {
   ]);
 };
 // ===== DocuWorks → PDF（このPCの変換ツール docuworks/dw2pdf.ps1 -Serve を 127.0.0.1 で呼ぶ） =====
+const DW_LATEST = 4;   // docuworks/dw2pdf.ps1 の Version（古い版には入れ直しを案内）
 const DW = {url:'http://127.0.0.1:52871', ok:false, pending:null, job:null, cancel:false};
 function isDW(f){ return /\.(xdw|xbd)$/i.test(f.name); }
 const dwSleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1843,8 +1844,10 @@ async function dwPing(quiet){
 function dwShowState(checking){
   const el = $('#dwState');
   if (checking) el.textContent = '変換ツールを確認中…';
-  else if (DW.ok) el.innerHTML = '<b style="color:#1a7f37">✓ 変換ツールにつながっています</b>（このPCの DocuWorks で変換します）';
-  else {
+  else if (DW.ok){
+    el.innerHTML = '<b style="color:#1a7f37">✓ 変換ツールにつながっています</b>（このPCの DocuWorks で変換します）'
+      + (+DW.version < DW_LATEST ? '<div class="note2" style="margin:4px 0 0;color:#b9351f">変換ツールが古い版です（途中で止まる・PCを起動したとき自動で起動しない）。下の「初めて使うとき」から ZIP をダウンロードし、setup.bat をもう一度実行してください。</div>' : '');
+  } else {
     el.innerHTML = '<b style="color:#c00">変換ツールが起動していません。</b><button type="button" id="dwLaunch">変換ツールを起動</button>'
       + '<div class="note2" style="margin:4px 0 0">「pdfeditor-dw を開きますか」と出たら「開く」を押してください。何も出ないときは、まだ準備ができていません（下の「初めて使うとき」）。</div>';
     $('#dwLaunch').onclick = dwLaunch;
@@ -1860,8 +1863,17 @@ async function dwLaunch(){
   if (!fr){ fr = document.createElement('iframe'); fr.id = 'dwFrame'; fr.style.display = 'none'; document.body.appendChild(fr); }
   fr.src = 'pdfeditor-dw://start?' + Date.now();
   $('#dwState').textContent = '変換ツールを起動しています…（10秒ほどかかります）';
-  for (let i = 0; i < 40; i++){ await dwSleep(1000); if (await dwPing(true)) break; }
+  for (let i = 0; i < 25; i++){ await dwSleep(1000); if (await dwPing(true)) break; }
   dwShowState();
+  if (!DW.ok){   // 起動できなかったときの原因と対処を出す
+    $('#dwState').innerHTML = '<b style="color:#c00">変換ツールにつながりませんでした。</b><button type="button" id="dwLaunch">もう一度</button>'
+      + '<ol class="note2" style="margin:6px 0 0;padding-left:18px">'
+      + '<li>アドレスバーの左や右上に「ローカル ネットワークへのアクセス」「ほかのデバイスへの接続」の確認が出ていたら「許可」を押してください（このPCの中の変換ツールと話すためです。外には送りません）。</li>'
+      + '<li>まだ準備をしていない／古い版のときは、下の「初めて使うとき」から ZIP をダウンロードし、setup.bat を実行してください（入れ直すと、PCを起動したとき自動で起動するようになります）。</li>'
+      + '<li>それでもだめなときは、デスクトップの「DocuWorks→PDF変換」にファイルをドロップすると、この画面を使わずに PDF にできます。</li></ol>';
+    $('#dwLaunch').onclick = dwLaunch;
+    $('#dwSetup').open = true;
+  }
 }
 async function showDocuWorks(pending){
   DW.pending = pending || null;
