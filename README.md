@@ -1,4 +1,6 @@
-# PDF編集ソフト
+# TECFOLIO（PDF編集ソフト）
+
+TECFOLIO（テクフォリオ）は TECTONICA ＋ FOLIO（紙・ページ）から。TECTRA（構造BIM一貫ツール）と同じ家族のロゴ（`make_icon.py` で `favicon.ico`・`icon.png`・`icon_192.png` を作る）。
 
 Acrobat の有料機能（文字の追加・書き換え、ページの追加・並べ替え・削除など）を、
 ブラウザだけで使えるようにした PDF 編集ツールです。インストール不要・無料。
