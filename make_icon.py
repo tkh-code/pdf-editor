@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """TECFOLIO（PDF編集ソフト）のアイコン（favicon.ico・icon.png・icon_192.png）を作る。py -3.12 make_icon.py
 
-名前：TECTONICA ＋ FOLIO（紙・ページ）。TECTRA（構造BIM一貫ツール）と同じ家族のロゴにする。
-形：TECTRA と同じ紺のグラデーションの角丸の四角に、白い線の書類を 2 枚重ね（奥は半透明）。
-手前の書類は右上を折り返し、文字の行 3 本のうち 1 本を水色のマーカー（PDF に書き込む）。
-16px でも書類と読めるよう、小さいアイコンは行を減らして線を太くする。
+名前：TECTONICA ＋ FOLIO（紙・ページ）。
+形（2026-11-20 作り直し）：画面の色に合わせた朱色のグラデーションの角丸の四角に、白い書類（右上を折り返し）と、
+書類に斜めに当てたペン（PDF に書き込む・直す）。TECTRA（紺・線画）とは色も形も分ける。
+16px でも書類とペンと読めるよう、小さいアイコンは行を減らしペンを太くする。
 """
 import hashlib
+import math
 import os
 import re
 
@@ -15,7 +16,9 @@ from PIL import Image, ImageDraw
 HERE = os.path.dirname(os.path.abspath(__file__))
 N = 1024
 WHITE = (255, 255, 255, 255)
-CYAN = (70, 220, 238, 255)
+FOLD = (255, 205, 196, 255)     # 折り返しの裏
+LINE = (232, 120, 100, 255)     # 書類の文字の行
+INK = (38, 42, 50, 255)         # ペンの軸
 
 
 def _gradient(c0, c1):
@@ -31,52 +34,67 @@ def _gradient(c0, c1):
     return im
 
 
-def _seg(d, p, q, w, col):
+def _round_line(d, p, q, w, col):
     d.line([p, q], fill=col, width=w)
     for c in (p, q):
-        d.ellipse([c[0] - w / 2 + 1, c[1] - w / 2 + 1, c[0] + w / 2 - 1, c[1] + w / 2 - 1], fill=col)
+        d.ellipse([c[0] - w / 2, c[1] - w / 2, c[0] + w / 2, c[1] + w / 2], fill=col)
 
 
-def _sheet(x0, y0, x1, y1, fold):
-    """右上を折り返した書類の外形（折り返しの斜め線つき）。"""
-    return [(x0, y0), (x1 - fold, y0), (x1, y0 + fold), (x1, y1), (x0, y1)]
+def _pen(d, tip, ang, length, width, small):
+    """先を tip に、角度 ang（度、右上向き）で伸びるペン。軸・口金・ペン先。"""
+    ux, uy = math.cos(math.radians(ang)), -math.sin(math.radians(ang))
+    nx, ny = -uy, ux
+    P = lambda s, t: (tip[0] + ux * s + nx * t, tip[1] + uy * s + ny * t)
+    w = width / 2
+    cone = width * 1.25
+    # ペン先（白い三角＋黒い先）
+    d.polygon([P(0, 0), P(cone, w), P(cone, -w)], fill=(214, 196, 178, 255))
+    d.polygon([P(0, 0), P(cone * 0.38, w * 0.38), P(cone * 0.38, -w * 0.38)], fill=INK)
+    # 口金（明るい帯）と軸
+    d.polygon([P(cone, w), P(cone + width * 0.35, w), P(cone + width * 0.35, -w), P(cone, -w)], fill=(255, 214, 170, 255))
+    body0 = cone + width * 0.35
+    d.polygon([P(body0, w), P(length, w), P(length, -w), P(body0, -w)], fill=INK)
+    d.ellipse([P(length, 0)[0] - w, P(length, 0)[1] - w, P(length, 0)[0] + w, P(length, 0)[1] + w], fill=INK)
+    if not small:   # 軸のつや
+        _round_line(d, P(body0 + 40, -w * 0.45), P(length - 30, -w * 0.45), int(width * 0.16), (90, 96, 108, 255))
 
 
 def draw(small=False):
     mask = Image.new("L", (N, N), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, N - 1, N - 1], radius=int(N * 0.225), fill=255)
     out = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-    out.paste(_gradient((34, 110, 166), (8, 22, 40)), (0, 0), mask)
-    lw = 56 if small else 32
-    fold = 150
-    # 奥の書類（半透明）。手前と少しずらす
-    glass = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-    g = ImageDraw.Draw(glass)
-    bx0, by0, bx1, by1 = 340, 170, 800, 760
-    if not small:
-        pts = _sheet(bx0, by0, bx1, by1, fold)
-        for a, b in zip(pts, pts[1:] + pts[:1]):
-            _seg(g, a, b, 24, (255, 255, 255, 110))
-    # 手前の書類の面（うっすら白）
-    fx0, fy0, fx1, fy1 = (250, 250, 730, 850) if not small else (230, 190, 790, 840)
-    g.polygon(_sheet(fx0, fy0, fx1, fy1, fold), fill=(255, 255, 255, 34))
-    out = Image.alpha_composite(out, glass)
+    out.paste(_gradient((240, 104, 74), (150, 28, 22)), (0, 0), mask)
     d = ImageDraw.Draw(out)
-    # 手前の書類の外形と折り返し
-    pts = _sheet(fx0, fy0, fx1, fy1, fold)
-    # 奥の書類が手前に透けないよう、手前の面の内側を背景色で塗り直してから線を描く
-    for a, b in zip(pts, pts[1:] + pts[:1]):
-        _seg(d, a, b, lw, WHITE)
-    _seg(d, (fx1 - fold, fy0), (fx1 - fold, fy0 + fold), lw, WHITE)
-    _seg(d, (fx1 - fold, fy0 + fold), (fx1, fy0 + fold), lw, WHITE)
-    # 文字の行：白・水色（マーカー）・白。小さいアイコンは 2 本
-    left, right = fx0 + 95, fx1 - 95
+    # 影（少しずらした半透明の黒）
+    sh = Image.new("RGBA", (N, N), (0, 0, 0, 0))
+    x0, y0, x1, y1 = (215, 150, 735, 860) if not small else (190, 120, 770, 880)
+    fold = 170 if not small else 210
+    page = [(x0, y0), (x1 - fold, y0), (x1, y0 + fold), (x1, y1), (x0, y1)]
+    ImageDraw.Draw(sh).polygon([(x + 18, y + 22) for x, y in page], fill=(60, 0, 0, 70))
+    out = Image.alpha_composite(out, sh)
+    d = ImageDraw.Draw(out)
+    # 白い書類と折り返し
+    d.rounded_rectangle([x0, y0, x1, y1], radius=26, fill=WHITE)
+    d.polygon([(x1 - fold - 2, y0 - 2), (x1 + 2, y0 - 2), (x1 + 2, y0 + fold + 2)], fill=(0, 0, 0, 0))
+    d.polygon([(x1 - fold, y0), (x1, y0 + fold), (x1 - fold, y0 + fold)], fill=FOLD)
+    # 角を抜いたところに背景を戻す
+    bg = _gradient((240, 104, 74), (150, 28, 22))
+    corner = Image.new("L", (N, N), 0)
+    ImageDraw.Draw(corner).polygon([(x1 - fold, y0), (x1 - fold, y0 - 40), (x1 + 40, y0 - 40), (x1 + 40, y0 + fold), (x1, y0 + fold)], fill=255)
+    out.paste(bg, (0, 0), corner)
+    d = ImageDraw.Draw(out)
+    d.polygon([(x1 - fold, y0), (x1, y0 + fold), (x1 - fold, y0 + fold)], fill=FOLD)
+    # 文字の行
+    lw = 46 if not small else 70
+    left = x0 + 85
+    rows = [(y0 + 300, x1 - 85), (y0 + 420, x1 - 85), (y0 + 540, x0 + 330)] if not small else [(y0 + 380, x1 - 95)]
+    for y, r in rows:
+        _round_line(d, (left, y), (r, y), lw, LINE)
+    # ペン（右下から左上の書類へ斜めに当てる）
     if small:
-        rows = [(fy0 + 330, right, WHITE), (fy0 + 480, right - 70, CYAN)]
+        _pen(d, (430, 760), 40, 640, 170, True)
     else:
-        rows = [(fy0 + 280, right, WHITE), (fy0 + 400, right, CYAN), (fy0 + 520, right - 110, WHITE)]
-    for y, r, col in rows:
-        _seg(d, (left, y), (r, y), (lw + 14) if col == CYAN else lw, col)
+        _pen(d, (470, 700), 40, 600, 130, False)
     clip = Image.new("RGBA", (N, N), (0, 0, 0, 0))
     clip.paste(out, (0, 0), mask)
     return clip
